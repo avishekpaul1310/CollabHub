@@ -253,206 +253,81 @@
         </div>
         {% endfor %}
         {% endif %}
-
+    
         {% block content %}{% endblock %}
     </div>
-
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-
-
+    
+    
+    <!-- Notification WebSocket Script -->
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            if (document.querySelector('#notificationDropdown')) {
+        // Check if user is authenticated (this will be evaluated by Django)
+        const isAuthenticated = "{{ user.is_authenticated }}" === "True";
+
+        if (isAuthenticated) {
+            // Setup WebSocket connection for notifications
+            const setupNotificationSocket = () => {
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
                 const notificationSocket = new WebSocket(
-                    'ws://' + window.location.host + '/ws/notifications/'
+                    wsProtocol + window.location.host + '/ws/notifications/'
                 );
+
+                notificationSocket.onopen = function (e) {
+                    console.log('Notification WebSocket connection established');
+                };
 
                 notificationSocket.onmessage = function (e) {
                     const data = JSON.parse(e.data);
-                    if (data.type === 'notification') {
-                        // Update the notification counter
-                        const notificationBadge = document.querySelector('#notificationDropdown .badge');
-                        const dropdownMenu = document.querySelector('#notificationDropdown + .dropdown-menu');
+                    console.log('Notification received:', data);
 
-                        // If there's no badge yet, create one
-                        if (!notificationBadge) {
-                            const newBadge = document.createElement('span');
-                            newBadge.className = 'badge bg-danger';
-                            newBadge.textContent = '1';
-                            document.querySelector('#notificationDropdown').appendChild(newBadge);
+                    // Update the notification badge
+                    const badge = document.querySelector('#notification-badge');
+                    if (badge) {
+                        if (data.count > 0) {
+                            badge.textContent = data.count;
+                            badge.classList.remove('d-none');
                         } else {
-                            // Increment the existing badge
-                            notificationBadge.textContent = parseInt(notificationBadge.textContent || '0') + 1;
+                            badge.classList.add('d-none');
                         }
+                    }
 
-                        // Add the notification to the dropdown if it exists
-                        if (dropdownMenu) {
-                            // Remove the "No notifications" item if it exists
-                            const emptyItem = dropdownMenu.querySelector('a.dropdown-item:only-child');
-                            if (emptyItem && emptyItem.textContent === 'No notifications') {
-                                emptyItem.remove();
-                            }
+                    // Show a browser notification
+                    if (Notification.permission === 'granted') {
+                        new Notification('CollabHub', {
+                            body: data.message,
+                            icon: '/static/images/logo.png'
+                        });
+                    }
 
-                            // Create the new notification item
-                            const notification = data.notification;
-                            const li = document.createElement('li');
-
-                            const link = document.createElement('a');
-                            link.className = 'dropdown-item fw-bold';
-                            link.href = notification.work_item_id ?
-                                '/workspace/work-items/' + notification.work_item_id + '/' :
-                                '#';
-
-                            // Set notification text
-                            link.textContent = notification.message;
-
-                            // Add timestamp
-                            const small = document.createElement('small');
-                            small.className = 'text-muted d-block';
-                            small.textContent = 'Just now';
-                            link.appendChild(small);
-
-                            // Add to dropdown
-                            li.appendChild(link);
-
-                            // Find where to insert the new notification (at the top)
-                            const firstItem = dropdownMenu.querySelector('li:first-child');
-                            if (firstItem) {
-                                dropdownMenu.insertBefore(li, firstItem);
-                            } else {
-                                dropdownMenu.appendChild(li);
-                            }
-
-                            // Make sure "View all" link exists
-                            let viewAllExists = false;
-                            const links = dropdownMenu.querySelectorAll('a.dropdown-item');
-                            for (let i = 0; i < links.length; i++) {
-                                if (links[i].textContent.includes('View all notifications')) {
-                                    viewAllExists = true;
-                                    break;
-                                }
-                            }
-
-                            if (!viewAllExists) {
-                                // Add divider
-                                const divider = document.createElement('li');
-                                divider.innerHTML = '<hr class="dropdown-divider">';
-                                dropdownMenu.appendChild(divider);
-
-                                // Add "View all" link
-                                const viewAll = document.createElement('li');
-                                const viewAllLink = document.createElement('a');
-                                viewAllLink.className = 'dropdown-item text-center';
-                                viewAllLink.href = '/workspace/notifications/';
-                                viewAllLink.textContent = 'View all notifications';
-                                viewAll.appendChild(viewAllLink);
-                                dropdownMenu.appendChild(viewAll);
-                            }
-                        }
-
-                        // Show a browser notification if supported
-                        if ("Notification" in window) {
-                            if (Notification.permission === "granted") {
-                                new Notification("CollabHub Notification", {
-                                    body: data.notification.message,
-                                    icon: "/static/images/logo.png" // Add your app logo path
-                                });
-                            } else if (Notification.permission !== "denied") {
-                                Notification.requestPermission().then(function (permission) {
-                                    if (permission === "granted") {
-                                        new Notification("CollabHub Notification", {
-                                            body: data.notification.message,
-                                            icon: "/static/images/logo.png" // Add your app logo path
-                                        });
-                                    }
-                                });
-                            }
-                        }
-
-                        // Play a notification sound
-                        const audio = new Audio('/static/sounds/notification.mp3'); // Add a sound file
-                        audio.play().catch(e => console.log('Audio play failed:', e));
+                    // Play notification sound
+                    try {
+                        const audio = new Audio('/static/sounds/notification.mp3');
+                        audio.play();
+                    } catch (e) {
+                        console.log('Could not play notification sound');
                     }
                 };
 
                 notificationSocket.onclose = function (e) {
-                    console.error('Notification socket closed unexpectedly');
+                    console.log('Notification WebSocket connection closed');
+                    // Try to reconnect after 5 seconds
+                    setTimeout(setupNotificationSocket, 5000);
                 };
-            }
+            };
 
-            // Handle marking notifications as read via AJAX
-            document.querySelectorAll('.mark-as-read').forEach(button => {
-                button.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const url = this.getAttribute('href');
-                    const notificationId = this.getAttribute('data-notification-id');
+            // Initialize the notification system
+            document.addEventListener('DOMContentLoaded', function () {
+                setupNotificationSocket();
 
-                    fetch(url, {
-                        method: 'GET',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.status === 'success') {
-                                // Update the UI
-                                this.closest('.list-group-item').classList.remove('list-group-item-light');
-                                this.remove();
-
-                                // Update the notification badge in the navbar
-                                const badge = document.querySelector('#notificationDropdown .badge');
-                                if (badge) {
-                                    const count = parseInt(badge.textContent) - 1;
-                                    if (count <= 0) {
-                                        badge.remove();
-                                    } else {
-                                        badge.textContent = count;
-                                    }
-                                }
-                            }
-                        })
-                        .catch(error => console.error('Error:', error));
-                });
+                // Request permission for browser notifications
+                if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+                    Notification.requestPermission();
+                }
             });
-
-            // Handle mark all as read via AJAX
-            const markAllReadBtn = document.querySelector('a[href="{% url "mark_all_read" %}"]');
-            if (markAllReadBtn) {
-                markAllReadBtn.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const url = this.getAttribute('href');
-
-                    fetch(url, {
-                        method: 'GET',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.status === 'success') {
-                                // Update the UI
-                                document.querySelectorAll('.list-group-item').forEach(item => {
-                                    item.classList.remove('list-group-item-light');
-                                });
-                                document.querySelectorAll('.mark-as-read').forEach(btn => {
-                                    btn.remove();
-                                });
-
-                                // Remove the notification badge in the navbar
-                                const badge = document.querySelector('#notificationDropdown .badge');
-                                if (badge) {
-                                    badge.remove();
-                                }
-                            }
-                        })
-                        .catch(error => console.error('Error:', error));
-                });
-            }
-        });
+        }
     </script>
     {% block extra_js %}{% endblock %}
-</body>
-
-</html>
+    </body>
+    
+    </html>
