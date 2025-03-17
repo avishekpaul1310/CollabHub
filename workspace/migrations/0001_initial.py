@@ -24,7 +24,7 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('collaborators', models.ManyToManyField(blank=True, related_name='collaborated_items', to=settings.AUTH_USER_MODEL)),
-                ('owner', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='work_items', to=settings.AUTH_USER_MODEL)),
+                ('owner', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='work_item', to=settings.AUTH_USER_MODEL)),
             ],
             options={
                 'ordering': ['-updated_at'],

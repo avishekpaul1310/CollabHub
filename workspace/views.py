@@ -11,12 +11,12 @@ from .forms import FileAttachmentForm
 @login_required
 def dashboard(request):
     # Get all items where user is either owner or collaborator
-    work_items = WorkItem.objects.filter(
+    work_item = WorkItem.objects.filter(
         Q(owner=request.user) | Q(collaborators=request.user)
     ).distinct()
     
     context = {
-        'work_items': work_items
+        'work_item': work_item
     }
     return render(request, 'workspace/dashboard.html', context)
 

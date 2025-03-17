@@ -12,7 +12,7 @@ class WorkItem(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     type = models.CharField(max_length=20, choices=TYPES)
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='work_items')
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='work_item')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     collaborators = models.ManyToManyField(User, related_name='collaborated_items', blank=True)
