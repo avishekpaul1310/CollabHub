@@ -9,7 +9,6 @@ import json
 # Get the channel layer for WebSocket communication
 channel_layer = get_channel_layer()
 
-# Helper function to send real-time notifications through WebSockets
 def send_notification(notification):
     notification_data = {
         'id': notification.id,
@@ -23,21 +22,24 @@ def send_notification(notification):
         f'notifications_{notification.user.id}',
         {
             'type': 'notification_message',
-            'notification': notification_data
+            'message': notification.message,
+            'count': Notification.objects.filter(user=notification.user, is_read=False).count()
         }
     )
 
-# When a new message is created
 @receiver(post_save, sender=Message)
 def create_message_notification(sender, instance, created, **kwargs):
     if created:
-        # Get all users associated with this work item except the message sender
-        users = User.objects.filter(work_item=instance.work_item).exclude(id=instance.user.id).distinct()
+        # Get the owner if not the message sender
+        recipients = set()
+        if instance.work_item.owner.id != instance.user.id:
+            recipients.add(instance.work_item.owner)
         
+        # Add all collaborators except the message sender
         collaborators = instance.work_item.collaborators.exclude(id=instance.user.id)
-        users = (users | collaborators).distinct()
+        recipients.update(collaborators)
 
-        for user in users:
+        for user in recipients:
             notification = Notification.objects.create(
                 user=user,
                 message=f"New message from {instance.user.username} in '{instance.work_item.title}'",
@@ -63,14 +65,19 @@ def create_workitem_update_notification(sender, instance, created, **kwargs):
             )
             send_notification(notification)
 
-# When a new file is uploaded - using your FileAttachment model
 @receiver(post_save, sender=FileAttachment)
 def create_file_upload_notification(sender, instance, created, **kwargs):
     if created:
-        # Get all users associated with this work item except the uploader
-        users = User.objects.filter(work_item=instance.work_item).exclude(id=instance.uploaded_by.id).distinct()
+        # Get the owner if not the uploader
+        recipients = set()
+        if instance.work_item.owner.id != instance.uploaded_by.id:
+            recipients.add(instance.work_item.owner)
         
-        for user in users:
+        # Add all collaborators except the uploader
+        collaborators = instance.work_item.collaborators.exclude(id=instance.uploaded_by.id)
+        recipients.update(collaborators)
+
+        for user in recipients:
             notification = Notification.objects.create(
                 user=user,
                 message=f"{instance.uploaded_by.username} uploaded '{instance.name}' to '{instance.work_item.title}'",
