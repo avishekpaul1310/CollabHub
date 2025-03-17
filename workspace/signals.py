@@ -32,8 +32,11 @@ def send_notification(notification):
 def create_message_notification(sender, instance, created, **kwargs):
     if created:
         # Get all users associated with this work item except the message sender
-        users = User.objects.filter(workitem=instance.work_item).exclude(id=instance.user.id).distinct()
+        users = User.objects.filter(work_item=instance.work_item).exclude(id=instance.user.id).distinct()
         
+        collaborators = instance.work_item.collaborators.exclude(id=instance.user.id)
+        users = (users | collaborators).distinct()
+
         for user in users:
             notification = Notification.objects.create(
                 user=user,
@@ -49,7 +52,7 @@ def create_workitem_update_notification(sender, instance, created, **kwargs):
     # Skip notifications on creation or if there's no updated_by user
     if not created and hasattr(instance, 'updated_by') and instance.updated_by:
         # Get all users associated with this work item except the one who made the update
-        users = User.objects.filter(workitem=instance).exclude(id=instance.updated_by.id).distinct()
+        users = User.objects.filter(work_item=instance).exclude(id=instance.updated_by.id).distinct()
         
         for user in users:
             notification = Notification.objects.create(
@@ -65,7 +68,7 @@ def create_workitem_update_notification(sender, instance, created, **kwargs):
 def create_file_upload_notification(sender, instance, created, **kwargs):
     if created:
         # Get all users associated with this work item except the uploader
-        users = User.objects.filter(workitem=instance.work_item).exclude(id=instance.uploaded_by.id).distinct()
+        users = User.objects.filter(work_item=instance.work_item).exclude(id=instance.uploaded_by.id).distinct()
         
         for user in users:
             notification = Notification.objects.create(
