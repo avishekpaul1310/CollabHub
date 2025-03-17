@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Your Notifications</h2>
+    
+    <div class="d-flex justify-content-between mb-3">
+        <span>You have {{ unread_count }} unread notification{{ unread_count|pluralize }}</span>
+        {% if notifications %}
+        <a href="{% url 'mark_all_read' %}" class="btn btn-sm btn-secondary">
+            Mark all as read
+        </a>
+        {% endif %}
+    </div>
+    
+    {% if notifications %}
+        <div class="list-group">
+            {% for notification in notifications %}
+                <div class="list-group-item list-group-item-action {% if not notification.is_read %}list-group-item-light{% endif %}">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">
+                            {% if notification.notification_type == 'message' %}
+                                <i class="fas fa-comment text-primary"></i>
+                            {% elif notification.notification_type == 'update' %}
+                                <i class="fas fa-edit text-warning"></i>
+                            {% elif notification.notification_type == 'file_upload' %}
+                                <i class="fas fa-file-upload text-success"></i>
+                            {% endif %}
+                            {{ notification.message }}
+                        </h5>
+                        <small>{{ notification.created_at|timesince }} ago</small>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-2">
+                        {% if notification.work_item %}
+                        <a href="{% url 'work_item_detail' notification.work_item.pk %}" class="btn btn-sm btn-primary">
+                            View Work Item
+                        </a>
+                        {% endif %}
+                        
+                        {% if not notification.is_read %}
+                        <a href="{% url 'mark_notification_read' notification.pk %}" class="btn btn-sm btn-outline-secondary mark-as-read" data-notification-id="{{ notification.pk }}">
+                            Mark as read
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">You don't have any notifications yet.</div>
+    {% endif %}
+</div>
+
+{% endblock %}

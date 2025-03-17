@@ -1,0 +1,199 @@
+:root {
+    --primary-color: #4a6fdc;
+    --secondary-color: #6c757d;
+    --accent-color: #ff6b6b;
+    --light-bg: #f8f9fa;
+    --dark-bg: #343a40;
+    --success-color: #28a745;
+    --task-color: #17a2b8;
+    --doc-color: #6f42c1;
+    --project-color: #fd7e14;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f7fb;
+}
+
+/* Navbar styling */
+.navbar {
+    background-color: var(--primary-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.navbar-brand {
+    font-weight: 700;
+    color: white !important;
+}
+
+/* Card styling */
+.card {
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-bottom: 20px;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    border-radius: 10px 10px 0 0 !important;
+    font-weight: 600;
+}
+
+/* Button styling */
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: #3a5dc9;
+    border-color: #3a5dc9;
+}
+
+/* Badge styling */
+.badge-task {
+    background-color: var(--task-color);
+    color: white;
+}
+
+.badge-doc {
+    background-color: var(--doc-color);
+    color: white;
+}
+
+.badge-project {
+    background-color: var(--project-color);
+    color: white;
+}
+
+/* Chat styling */
+.chat-container {
+    height: 400px;
+    overflow-y: auto;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 0 0 10px 10px;
+}
+
+.message {
+    margin-bottom: 15px;
+    padding: 10px 15px;
+    border-radius: 15px;
+    max-width: 80%;
+    position: relative;
+}
+
+.message-sent {
+    background-color: #e1f5fe;
+    margin-left: auto;
+    border-bottom-right-radius: 5px;
+}
+
+.message-received {
+    background-color: #f5f5f5;
+    margin-right: auto;
+    border-bottom-left-radius: 5px;
+}
+
+.message-user {
+    font-size: 0.8em;
+    font-weight: bold;
+    margin-bottom: 3px;
+}
+
+.message-time {
+    font-size: 0.7em;
+    color: #888;
+    position: absolute;
+    bottom: 5px;
+    right: 10px;
+}
+
+.file-upload {
+    margin-top: 10px;
+}
+
+/* User profile styling */
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.sidebar {
+    background-color: white;
+    height: calc(100vh - 56px);
+    position: sticky;
+    top: 56px;
+    padding: 20px;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+}
+
+.content-area {
+    padding: 20px;
+}
+
+/* Alert messages */
+.alert {
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+/* Form styling */
+.form-control {
+    border-radius: 8px;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(74, 111, 220, 0.25);
+}
+
+/* Dashboard specific styling */
+.dashboard-card {
+    height: 100%;
+}
+
+.dashboard-card .card-footer {
+    background-color: transparent;
+    border-top: 1px solid rgba(0,0,0,.05);
+}
+
+/* File attachment styling */
+.file-attachment {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-top: 8px;
+    display: inline-block;
+}
+
+/* Loading indicator */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top-color: var(--primary-color);
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 767.98px) {
+    .message {
+        max-width: 90%;
+    }
+}

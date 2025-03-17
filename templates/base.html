@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Contextual Collaboration Hub{% endblock %}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #4a6fdc;
+            --secondary-color: #6c757d;
+            --accent-color: #ff6b6b;
+            --light-bg: #f8f9fa;
+            --dark-bg: #343a40;
+            --success-color: #28a745;
+            --task-color: #17a2b8;
+            --doc-color: #6f42c1;
+            --project-color: #fd7e14;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fb;
+        }
+        
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: white !important;
+        }
+        
+        .card {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 20px;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-header {
+            border-radius: 10px 10px 0 0 !important;
+            font-weight: 600;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: #3a5dc9;
+            border-color: #3a5dc9;
+        }
+        
+        .badge-task {
+            background-color: var(--task-color);
+            color: white;
+        }
+        
+        .badge-doc {
+            background-color: var(--doc-color);
+            color: white;
+        }
+        
+        .badge-project {
+            background-color: var(--project-color);
+            color: white;
+        }
+        
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 0 0 10px 10px;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 80%;
+            position: relative;
+        }
+        
+        .message-sent {
+            background-color: #e1f5fe;
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .message-received {
+            background-color: #f5f5f5;
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .message-user {
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        
+        .message-time {
+            font-size: 0.7em;
+            color: #888;
+            position: absolute;
+            bottom: 5px;
+            right: 10px;
+        }
+        
+        .file-upload {
+            margin-top: 10px;
+        }
+        
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        
+        .sidebar {
+            background-color: white;
+            height: calc(100vh - 56px);
+            position: sticky;
+            top: 56px;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+        }
+        
+        .content-area {
+            padding: 20px;
+        }
+        
+        /* Alert messages */
+        .alert {
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        /* Form styling */
+        .form-control {
+            border-radius: 8px;
+        }
+        
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(74, 111, 220, 0.25);
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'dashboard' %}">Contextual Collaboration Hub</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'dashboard' %}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'create_work_item' %}">Create Work Item</a>
+                    </li>
+                    {% endif %}
+                </ul>
+
+                <ul class="navbar-nav">
+                    {% if user.is_authenticated %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
+                            data-bs-toggle="dropdown">
+                            {{ user.username }}
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a class="dropdown-item" href="{% url 'profile' %}">
+                                <i class="fas fa-user-circle fa-fw"></i> Profile
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="{% url 'logout' %}">
+                                <i class="fas fa-sign-out-alt fa-fw"></i> Logout
+                            </a>
+                        </div>
+                    </li>
+                    <!-- Add this inside your navbar, before the user dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-bell"></i>
+                            {% if unread_notifications_count > 0 %}
+                                <span class="badge bg-danger">{{ unread_notifications_count }}</span>
+                            {% endif %}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationDropdown">
+                            {% with recent_notifications=request.user.notifications.all|slice:":5" %}
+                            {% if recent_notifications %}
+                            {% for notification in recent_notifications %}
+                            <li>
+                                <a class="dropdown-item {% if not notification.is_read %}fw-bold{% endif %}"
+                                    href="{% url 'work_item_detail' notification.work_item.pk %}">
+                                    {{ notification.message|truncatechars:50 }}
+                                    <small class="text-muted d-block">{{ notification.created_at|timesince }}
+                                        ago</small>
+                                </a>
+                            </li>
+                            {% endfor %}
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item text-center" href="{% url 'notifications_list' %}">View all
+                                    notifications</a>
+                            </li>
+                            {% else %}
+                            <li><a class="dropdown-item" href="#">No notifications</a></li>
+                            {% endif %}
+                            {% endwith %}
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'login' %}">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'register' %}">Register</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            if (document.querySelector('#notificationDropdown')) {
+                const notificationSocket = new WebSocket(
+                    'ws://' + window.location.host + '/ws/notifications/'
+                );
+
+                notificationSocket.onmessage = function (e) {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'notification') {
+                        // Update the notification counter
+                        const notificationBadge = document.querySelector('#notificationDropdown .badge');
+                        const dropdownMenu = document.querySelector('#notificationDropdown + .dropdown-menu');
+
+                        // If there's no badge yet, create one
+                        if (!notificationBadge) {
+                            const newBadge = document.createElement('span');
+                            newBadge.className = 'badge bg-danger';
+                            newBadge.textContent = '1';
+                            document.querySelector('#notificationDropdown').appendChild(newBadge);
+                        } else {
+                            // Increment the existing badge
+                            notificationBadge.textContent = parseInt(notificationBadge.textContent || '0') + 1;
+                        }
+
+                        // Add the notification to the dropdown if it exists
+                        if (dropdownMenu) {
+                            // Remove the "No notifications" item if it exists
+                            const emptyItem = dropdownMenu.querySelector('a.dropdown-item:only-child');
+                            if (emptyItem && emptyItem.textContent === 'No notifications') {
+                                emptyItem.remove();
+                            }
+
+                            // Create the new notification item
+                            const notification = data.notification;
+                            const li = document.createElement('li');
+
+                            const link = document.createElement('a');
+                            link.className = 'dropdown-item fw-bold';
+                            link.href = notification.work_item_id ?
+                                '/workspace/work-items/' + notification.work_item_id + '/' :
+                                '#';
+
+                            // Set notification text
+                            link.textContent = notification.message;
+
+                            // Add timestamp
+                            const small = document.createElement('small');
+                            small.className = 'text-muted d-block';
+                            small.textContent = 'Just now';
+                            link.appendChild(small);
+
+                            // Add to dropdown
+                            li.appendChild(link);
+
+                            // Find where to insert the new notification (at the top)
+                            const firstItem = dropdownMenu.querySelector('li:first-child');
+                            if (firstItem) {
+                                dropdownMenu.insertBefore(li, firstItem);
+                            } else {
+                                dropdownMenu.appendChild(li);
+                            }
+
+                            // Make sure "View all" link exists
+                            let viewAllExists = false;
+                            const links = dropdownMenu.querySelectorAll('a.dropdown-item');
+                            for (let i = 0; i < links.length; i++) {
+                                if (links[i].textContent.includes('View all notifications')) {
+                                    viewAllExists = true;
+                                    break;
+                                }
+                            }
+
+                            if (!viewAllExists) {
+                                // Add divider
+                                const divider = document.createElement('li');
+                                divider.innerHTML = '<hr class="dropdown-divider">';
+                                dropdownMenu.appendChild(divider);
+
+                                // Add "View all" link
+                                const viewAll = document.createElement('li');
+                                const viewAllLink = document.createElement('a');
+                                viewAllLink.className = 'dropdown-item text-center';
+                                viewAllLink.href = '/workspace/notifications/';
+                                viewAllLink.textContent = 'View all notifications';
+                                viewAll.appendChild(viewAllLink);
+                                dropdownMenu.appendChild(viewAll);
+                            }
+                        }
+
+                        // Show a browser notification if supported
+                        if ("Notification" in window) {
+                            if (Notification.permission === "granted") {
+                                new Notification("CollabHub Notification", {
+                                    body: data.notification.message,
+                                    icon: "/static/images/logo.png" // Add your app logo path
+                                });
+                            } else if (Notification.permission !== "denied") {
+                                Notification.requestPermission().then(function (permission) {
+                                    if (permission === "granted") {
+                                        new Notification("CollabHub Notification", {
+                                            body: data.notification.message,
+                                            icon: "/static/images/logo.png" // Add your app logo path
+                                        });
+                                    }
+                                });
+                            }
+                        }
+
+                        // Play a notification sound
+                        const audio = new Audio('/static/sounds/notification.mp3'); // Add a sound file
+                        audio.play().catch(e => console.log('Audio play failed:', e));
+                    }
+                };
+
+                notificationSocket.onclose = function (e) {
+                    console.error('Notification socket closed unexpectedly');
+                };
+            }
+
+            // Handle marking notifications as read via AJAX
+            document.querySelectorAll('.mark-as-read').forEach(button => {
+                button.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const url = this.getAttribute('href');
+                    const notificationId = this.getAttribute('data-notification-id');
+
+                    fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                // Update the UI
+                                this.closest('.list-group-item').classList.remove('list-group-item-light');
+                                this.remove();
+
+                                // Update the notification badge in the navbar
+                                const badge = document.querySelector('#notificationDropdown .badge');
+                                if (badge) {
+                                    const count = parseInt(badge.textContent) - 1;
+                                    if (count <= 0) {
+                                        badge.remove();
+                                    } else {
+                                        badge.textContent = count;
+                                    }
+                                }
+                            }
+                        })
+                        .catch(error => console.error('Error:', error));
+                });
+            });
+
+            // Handle mark all as read via AJAX
+            const markAllReadBtn = document.querySelector('a[href="{% url "mark_all_read" %}"]');
+            if (markAllReadBtn) {
+                markAllReadBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const url = this.getAttribute('href');
+
+                    fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                // Update the UI
+                                document.querySelectorAll('.list-group-item').forEach(item => {
+                                    item.classList.remove('list-group-item-light');
+                                });
+                                document.querySelectorAll('.mark-as-read').forEach(btn => {
+                                    btn.remove();
+                                });
+
+                                // Remove the notification badge in the navbar
+                                const badge = document.querySelector('#notificationDropdown .badge');
+                                if (badge) {
+                                    badge.remove();
+                                }
+                            }
+                        })
+                        .catch(error => console.error('Error:', error));
+                });
+            }
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1>Your Work Items</h1>
+            <a href="{% url 'create_work_item' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Create Work Item
+            </a>
+        </div>
+        <hr>
+    </div>
+</div>
+
+{% if work_items %}
+<div class="row">
+    {% for work_item in work_items %}
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                {% if work_item.type == 'task' %}
+                <span class="badge bg-info">Task</span>
+                {% elif work_item.type == 'doc' %}
+                <span class="badge bg-purple">Document</span>
+                {% else %}
+                <span class="badge bg-warning text-dark">Project</span>
+                {% endif %}
+                <span class="text-muted small">{{ work_item.created_at|date:"M d, Y" }}</span>
+            </div>
+            <div class="card-body">
+                <h5 class="card-title">{{ work_item.title }}</h5>
+                <p class="card-text text-muted">
+                    {% if work_item.description|length > 100 %}
+                        {{ work_item.description|slice:":100" }}...
+                    {% else %}
+                        {{ work_item.description }}
+                    {% endif %}
+                </p>
+                
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-user"></i> Owner: {{ work_item.owner.username }}
+                    </small>
+                </div>
+                
+                {% if work_item.messages.exists %}
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="fas fa-comments"></i> {{ work_item.messages.count }} messages
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="{% url 'work_item_detail' work_item.pk %}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-eye"></i> View Details
+                </a>
+                {% if request.user == work_item.owner %}
+                <a href="{% url 'update_work_item' work_item.pk %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-edit"></i> Edit
+                </a>
+                <a href="{% url 'delete_work_item' work_item.pk %}" class="btn btn-sm btn-outline-danger">
+                    <i class="fas fa-trash"></i> Delete
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5">
+    <div class="mb-4">
+        <i class="fas fa-clipboard-list fa-4x text-muted"></i>
+    </div>
+    <h3 class="text-muted">No work items yet</h3>
+    <p>Create your first work item to get started.</p>
+    <a href="{% url 'create_work_item' %}" class="btn btn-primary mt-3">
+        <i class="fas fa-plus"></i> Create Work Item
+    </a>
+</div>
+{% endif %}
+{% endblock %}

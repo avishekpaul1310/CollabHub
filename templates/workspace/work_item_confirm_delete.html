@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete {{ work_item.title }} | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">Delete Work Item</h4>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
+                </div>
+                <h4>Are you sure you want to delete "{{ work_item.title }}"?</h4>
+                <p class="text-muted">This action cannot be undone. All associated messages and files will be permanently deleted.</p>
+                
+                <div class="alert alert-warning">
+                    <small>
+                        <i class="fas fa-info-circle"></i> Type: {{ work_item.get_type_display }} | 
+                        Created: {{ work_item.created_at|date:"M d, Y" }} | 
+                        Messages: {{ work_item.messages.count }}
+                    </small>
+                </div>
+                
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-4">
+                        <a href="{% url 'work_item_detail' work_item.pk %}" class="btn btn-outline-secondary me-md-2">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

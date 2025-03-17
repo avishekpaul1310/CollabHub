@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}Profile | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">User Profile</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center mb-4 mb-md-0">
+                        <img src="{{ user.profile.avatar.url }}" alt="{{ user.username }}" class="rounded-circle img-fluid mb-3" style="max-width: 200px;">
+                        <h5>{{ user.username }}</h5>
+                        <p class="text-muted">{{ user.email }}</p>
+                    </div>
+                    
+                    <div class="col-md-8">
+                        <form method="POST" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            
+                            <div class="mb-3">
+                                <label for="{{ u_form.username.id_for_label }}" class="form-label">Username</label>
+                                {{ u_form.username.errors }}
+                                <input type="text" name="{{ u_form.username.name }}" id="{{ u_form.username.id_for_label }}" 
+                                       class="form-control {% if u_form.username.errors %}is-invalid{% endif %}"
+                                       value="{{ u_form.username.value }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ u_form.email.id_for_label }}" class="form-label">Email</label>
+                                {{ u_form.email.errors }}
+                                <input type="email" name="{{ u_form.email.name }}" id="{{ u_form.email.id_for_label }}" 
+                                       class="form-control {% if u_form.email.errors %}is-invalid{% endif %}"
+                                       value="{{ u_form.email.value }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ p_form.avatar.id_for_label }}" class="form-label">Profile Picture</label>
+                                {{ p_form.avatar.errors }}
+                                <input type="file" name="{{ p_form.avatar.name }}" id="{{ p_form.avatar.id_for_label }}" 
+                                       class="form-control {% if p_form.avatar.errors %}is-invalid{% endif %}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ p_form.bio.id_for_label }}" class="form-label">Bio</label>
+                                {{ p_form.bio.errors }}
+                                <textarea name="{{ p_form.bio.name }}" id="{{ p_form.bio.id_for_label }}"
+                                         class="form-control {% if p_form.bio.errors %}is-invalid{% endif %}"
+                                         rows="4">{{ p_form.bio.value }}</textarea>
+                            </div>
+                            
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Update Profile
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
