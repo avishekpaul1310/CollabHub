@@ -36,7 +36,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message_obj = await self.save_message(user_id, message)
 
         # Create notifications for all collaborators except the sender
-        await self.create_notifications(message_obj, user_id)
+        # await self.create_notifications(message_obj, user_id)
         
         # Format timestamp for display
         timestamp = message_obj.created_at.strftime("%Y-%m-%d %H:%M:%S")
@@ -86,7 +86,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         user = User.objects.get(pk=user_id)
         return user.username
         
-    @database_sync_to_async
+    """@database_sync_to_async
     def create_notifications(self, message_obj, sender_id):
         sender = User.objects.get(pk=sender_id)
         work_item = message_obj.work_item
@@ -102,7 +102,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     message=f"{sender.username} sent a message in '{work_item.title}'",
                     work_item=work_item,
                     notification_type='message'
-                )
+                )"""
 
 class FileConsumer(AsyncWebsocketConsumer):
     async def connect(self):
