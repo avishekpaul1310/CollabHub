@@ -57,7 +57,7 @@ class MessageModelTest(TestCase):
     
     def test_message_string_representation(self):
         """Test the string representation of a message."""
-        self.assertEqual(str(self.message), 'testuser: Test message co')
+        self.assertEqual(str(self.message), 'testuser: Test message content')
 
 
 class NotificationModelTest(TestCase):
