@@ -33,3 +33,13 @@ A modern web application for team collaboration that combines messaging, documen
    ```bash
    git clone https://github.com/avishekpaul1310/CollabHub.git
    cd CollabHub
+## Running the Application
+
+CollabHub uses WebSockets for real-time features like chat, notifications, and live updates. Therefore, it must be run using Daphne instead of Django's standard development server.
+
+### Development
+
+To run the development server:
+
+```bash
+daphne -p 8000 collabhub.asgi:application
