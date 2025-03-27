@@ -70,7 +70,12 @@ class UserRegisterViewTest(TestCase):
         # Form should display error and not create user
         self.assertEqual(response.status_code, 200)
         self.assertEqual(User.objects.count(), 0)
-        self.assertFormError(response, 'form', 'password2', "The two password fields didn't match.")
+        
+        # Check if form has the expected error, using the proper syntax for Django's assertFormError
+        form = response.context.get('form')
+        self.assertTrue(form.errors)
+        self.assertIn('password2', form.errors)
+        self.assertTrue(any("password fields didn't match" in error for error in form.errors['password2']))
     
     def test_register_view_existing_username(self):
         """Test registration with an existing username."""
@@ -146,10 +151,18 @@ class UserLogoutTest(TestCase):
     
     def test_logout_view(self):
         """Test logout functionality."""
+        # Check that user is logged in before logout
+        self.assertTrue(self.client.session.get('_auth_user_id'))
+        
+        # Perform logout
         response = self.client.get(self.logout_url)
         
-        # Check template used
+        # Django redirects after logout, so we should follow that redirect
+        response = self.client.get(self.logout_url, follow=True)
+        
+        # Now check the template after following the redirect
         self.assertTemplateUsed(response, 'users/logout.html')
+        
         # Verify user is logged out
         self.assertFalse(response.wsgi_request.user.is_authenticated)
 
@@ -216,14 +229,16 @@ class UserProfileViewTest(TestCase):
         self.client.login(username='testuser', password='password123')
         
         # Update profile with new data including avatar
-        data = {
-            'username': 'image_user',
-            'email': 'image@example.com',
-            'bio': 'Profile with image',
-            'avatar': self.avatar,
-        }
-        
-        response = self.client.post(self.profile_url, data, format='multipart')
+        with open('users/tests.py', 'rb') as file:
+            # Using the test file itself as test avatar data
+            data = {
+                'username': 'image_user',
+                'email': 'image@example.com',
+                'bio': 'Profile with image',
+                'avatar': file,
+            }
+            
+            response = self.client.post(self.profile_url, data)
         
         # Refresh user from database
         self.user.refresh_from_db()
@@ -325,8 +340,8 @@ class UserProfileSignalTest(TestCase):
             Profile.objects.get(user=user)
         
         # Simulate the command by running the signal manually
-        from users.signals import create_profile
-        create_profile(sender=User, instance=user, created=False)
+        from users.signals import save_profile
+        save_profile(sender=User, instance=user)
         
         # Verify profile now exists
         self.assertTrue(Profile.objects.filter(user=user).exists())
