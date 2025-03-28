@@ -3,9 +3,9 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from .models import WorkItem, Message, Notification, NotificationPreference
-from .forms import WorkItemForm, MessageForm
+from .forms import WorkItemForm, MessageForm, ThreadForm
 from django.db.models import Q
-from .models import FileAttachment
+from .models import Thread, FileAttachment
 from .forms import FileAttachmentForm, NotificationPreferenceForm
 
 @login_required
@@ -23,17 +23,109 @@ def dashboard(request):
 @login_required
 def work_item_detail(request, pk):
     work_item = get_object_or_404(WorkItem, pk=pk)
-    messages = work_item.messages.all()  # Don't filter by file field
     
-    # If you have a separate file model:
+    # Check if user has access to this work item
+    if work_item.owner != request.user and request.user not in work_item.collaborators.all():
+        messages.error(request, "You don't have permission to view this work item.")
+        return redirect('dashboard')
+    
+    # Get threads for this work item that the user can access
+    user_threads = Thread.objects.filter(work_item=work_item)
+    threads = [thread for thread in user_threads if thread.user_can_access(request.user)]
+    
+    # Get files
     files = work_item.files.all() if hasattr(work_item, 'files') else []
+    
+    # Mark notifications for this work item as read
+    if request.user.is_authenticated:
+        Notification.objects.filter(
+            user=request.user,
+            work_item=work_item,
+            is_read=False
+        ).update(is_read=True)
     
     context = {
         'work_item': work_item,
-        'messages': messages,
+        'threads': threads,
         'files': files
     }
     return render(request, 'workspace/work_item_detail.html', context)
+
+@login_required
+def thread_detail(request, work_item_pk, thread_pk):
+    work_item = get_object_or_404(WorkItem, pk=work_item_pk)
+    thread = get_object_or_404(Thread, pk=thread_pk, work_item=work_item)
+    
+    # Check if user has permission to view this thread
+    if not thread.user_can_access(request.user):
+        messages.error(request, "You don't have permission to view this thread.")
+        return redirect('work_item_detail', pk=work_item.pk)
+    
+    # Get messages
+    messages_list = thread.thread_messages.filter(Q(parent=None) | Q(is_thread_starter=True)).order_by('created_at')
+    
+    # For each message, preload its replies
+    for message in messages_list:
+        message.replies_list = message.replies.all()
+    
+    context = {
+        'work_item': work_item,
+        'thread': thread,
+        'messages': messages_list
+    }
+    return render(request, 'workspace/thread_detail.html', context)
+
+@login_required
+def create_thread(request, work_item_pk):
+    work_item = get_object_or_404(WorkItem, pk=work_item_pk)
+    
+    # Check if user has permission to create threads in this work item
+    if work_item.owner != request.user and request.user not in work_item.collaborators.all():
+        messages.error(request, "You don't have permission to create threads in this work item.")
+        return redirect('work_item_detail', pk=work_item.pk)
+    
+    if request.method == 'POST':
+        form = ThreadForm(request.POST, work_item=work_item, user=request.user)
+        if form.is_valid():
+            thread = form.save()
+            messages.success(request, f'Thread "{thread.title}" has been created!')
+            return redirect('thread_detail', work_item_pk=work_item.pk, thread_pk=thread.pk)
+    else:
+        form = ThreadForm(work_item=work_item, user=request.user)
+    
+    context = {
+        'form': form,
+        'work_item': work_item,
+        'title': 'Create Thread'
+    }
+    return render(request, 'workspace/thread_form.html', context)
+
+@login_required
+def update_thread(request, work_item_pk, thread_pk):
+    work_item = get_object_or_404(WorkItem, pk=work_item_pk)
+    thread = get_object_or_404(Thread, pk=thread_pk, work_item=work_item)
+    
+    # Check permissions
+    if thread.created_by != request.user and work_item.owner != request.user:
+        messages.error(request, "You don't have permission to edit this thread.")
+        return redirect('thread_detail', work_item_pk=work_item.pk, thread_pk=thread.pk)
+    
+    if request.method == 'POST':
+        form = ThreadForm(request.POST, instance=thread, work_item=work_item, user=request.user)
+        if form.is_valid():
+            thread = form.save()
+            messages.success(request, f'Thread "{thread.title}" has been updated!')
+            return redirect('thread_detail', work_item_pk=work_item.pk, thread_pk=thread.pk)
+    else:
+        form = ThreadForm(instance=thread, work_item=work_item, user=request.user)
+    
+    context = {
+        'form': form,
+        'work_item': work_item,
+        'thread': thread,
+        'title': 'Update Thread'
+    }
+    return render(request, 'workspace/thread_form.html', context)
 
 
 @login_required
