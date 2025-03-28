@@ -173,15 +173,42 @@ class Thread(models.Model):
     
     def user_can_access(self, user):
         """Check if a user can access this thread"""
+        if user is None:
+            return False
+            
+        # The creator always has access
+        if self.created_by == user:
+            return True
+            
         if self.is_public:
-            # If public, check if user can access the parent work item
+            # For public threads, anyone with access to the work item can access
             return self.work_item.owner == user or user in self.work_item.collaborators.all()
         else:
-            # If private, check if user is explicitly allowed
-            return (self.work_item.owner == user or 
-                    user in self.work_item.collaborators.all() or 
-                    user in self.allowed_users.all() or 
-                    self.created_by == user)
+            # For private threads, ONLY users explicitly in allowed_users can access
+            # (plus the work item owner, if they need to moderate)
+            if self.work_item.owner == user:
+                return True  # Work item owner always has access for moderation
+                
+            return user in self.allowed_users.all()
+            
+    def get_participants(self):
+        """Get all users who should be participants in this thread"""
+        participants = set()
+        
+        # The creator is always a participant
+        participants.add(self.created_by)
+        
+        if self.is_public:
+            # For public threads, all work item collaborators are participants
+            participants.add(self.work_item.owner)
+            for user in self.work_item.collaborators.all():
+                participants.add(user)
+        else:
+            # For private threads, only allowed users are participants
+            for user in self.allowed_users.all():
+                participants.add(user)
+                
+        return participants
 
 class ThreadGroup(models.Model):
     work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='thread_groups')
