@@ -1,0 +1,75 @@
+<!-- templates/workspace/thread_form.html -->
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">{{ title }} in "{{ work_item.title }}"</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.title.id_for_label }}" class="form-label">Thread Title</label>
+                        {{ form.title.errors }}
+                        <input type="text" name="{{ form.title.name }}" id="{{ form.title.id_for_label }}" 
+                               class="form-control {% if form.title.errors %}is-invalid{% endif %}"
+                               value="{{ form.title.value|default:'' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.is_public.errors }}
+                            <input type="checkbox" name="{{ form.is_public.name }}" id="{{ form.is_public.id_for_label }}" 
+                                   class="form-check-input {% if form.is_public.errors %}is-invalid{% endif %}"
+                                   {% if form.is_public.value %}checked{% endif %}>
+                            <label class="form-check-label" for="{{ form.is_public.id_for_label }}">Public Thread</label>
+                        </div>
+                        <div class="form-text">If unchecked, only selected users will have access to this thread.</div>
+                    </div>
+                    
+                    <div id="allowed-users-section" class="mb-3" {% if form.is_public.value %}style="display: none;"{% endif %}>
+                        <label for="{{ form.allowed_users.id_for_label }}" class="form-label">Users with Access</label>
+                        {{ form.allowed_users.errors }}
+                        <select name="{{ form.allowed_users.name }}" id="{{ form.allowed_users.id_for_label }}" 
+                               class="form-select {% if form.allowed_users.errors %}is-invalid{% endif %}"
+                               multiple>
+                            {% for user_obj in form.fields.allowed_users.queryset %}
+                            <option value="{{ user_obj.id }}" {% if user_obj.id in form.allowed_users.value %}selected{% endif %}>{{ user_obj.username }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Hold down Ctrl (Windows) or Command (Mac) to select multiple users.</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a href="{% url 'work_item_detail' work_item.pk %}" class="btn btn-outline-secondary me-md-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const isPublicCheckbox = document.getElementById('{{ form.is_public.id_for_label }}');
+        const allowedUsersSection = document.getElementById('allowed-users-section');
+        
+        isPublicCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                allowedUsersSection.style.display = 'none';
+            } else {
+                allowedUsersSection.style.display = 'block';
+            }
+        });
+    });
+</script>
+{% endblock %}

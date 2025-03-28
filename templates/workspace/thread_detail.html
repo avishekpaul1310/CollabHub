@@ -1,0 +1,136 @@
+<!-- templates/workspace/thread_detail.html -->
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ thread.title }} | {{ work_item.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Breadcrumb navigation -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'work_item_detail' work_item.pk %}">{{ work_item.title }}</a></li>
+            <li class="breadcrumb-item active">{{ thread.title }}</li>
+        </ol>
+    </nav>
+
+    <!-- Thread Header Card -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h4 class="mb-0">{{ thread.title }}</h4>
+                <small class="text-muted">
+                    Thread in {{ work_item.title }} • 
+                    Created by {{ thread.created_by.username }} • 
+                    {{ thread.created_at|date:"M d, Y" }}
+                    {% if not thread.is_public %}
+                        <span class="badge bg-warning text-dark ms-2">Private</span>
+                    {% endif %}
+                </small>
+            </div>
+            <div>
+                {% if request.user == thread.created_by or request.user == work_item.owner %}
+                <a href="{% url 'update_thread' work_item.pk thread.pk %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-edit"></i> Edit Thread
+                </a>
+                {% endif %}
+                <a href="{% url 'work_item_detail' work_item.pk %}" class="btn btn-secondary btn-sm">
+                    <i class="fas fa-arrow-left"></i> Back to Work Item
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Messages Card -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">Messages</h5>
+        </div>
+        <div class="card-body">
+            <!-- Messages list container -->
+            <div id="messages-list" class="mb-3" style="height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 5px; padding: 10px;">
+                <!-- Main thread messages only -->
+                {% for message in messages %}
+                    <div class="message-container mb-3" id="message-{{ message.id }}">
+                        <div class="message p-3 {% if message.user == request.user %}bg-light border-end border-primary border-3{% else %}border-start border-primary border-3{% endif %} rounded">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                    <strong>{{ message.user.username }}</strong>
+                                </div>
+                                <small class="text-muted">{{ message.created_at|date:"Y-m-d H:i" }}</small>
+                            </div>
+                            <div class="message-content mb-2">{{ message.content }}</div>
+                            <div class="message-actions d-flex align-items-center">
+                                <button class="btn btn-sm btn-outline-secondary reply-btn" data-message-id="{{ message.id }}">
+                                    <i class="fas fa-reply"></i> Reply
+                                </button>
+                                {% if message.reply_count > 0 %}
+                                <button class="btn btn-sm btn-link toggle-replies ms-2" data-message-id="{{ message.id }}">
+                                    <i class="fas fa-comments"></i> {{ message.reply_count }} replies
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Replies container (initially hidden) -->
+                        <div class="replies-container ps-4 mt-2" id="replies-{{ message.id }}" style="display: none;">
+                            <!-- Will be filled dynamically when toggled -->
+                            {% for reply in message.replies.all %}
+                            <div class="reply p-2 mb-2 {% if reply.user == request.user %}bg-light border-end border-info border-2{% else %}border-start border-info border-2{% endif %} rounded" id="message-{{ reply.id }}">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <div>
+                                        <strong>{{ reply.user.username }}</strong>
+                                    </div>
+                                    <small class="text-muted">{{ reply.created_at|date:"Y-m-d H:i" }}</small>
+                                </div>
+                                <div class="reply-content">{{ reply.content }}</div>
+                                <div class="reply-actions mt-1">
+                                    <button class="btn btn-sm btn-outline-secondary reply-btn" data-message-id="{{ message.id }}">
+                                        <i class="fas fa-reply"></i> Reply
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Reply form (initially hidden) -->
+                        <div class="reply-form mt-2 ps-4" id="reply-form-{{ message.id }}" style="display: none;">
+                            <form class="thread-reply-form">
+                                <input type="hidden" name="parent_id" value="{{ message.id }}">
+                                <div class="input-group">
+                                    <textarea class="form-control reply-input" rows="2" placeholder="Write a reply..."></textarea>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="text-center py-5">
+                        <p class="text-muted">No messages in this thread yet. Be the first to post!</p>
+                    </div>
+                {% endfor %}
+            </div>
+        
+            <!-- Message input form -->
+            <form id="chat-form" class="mt-3">
+                <div class="input-group">
+                    <textarea id="message-input" class="form-control" rows="3" placeholder="Type your message..."></textarea>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i> Send
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // JavaScript for thread messaging and UI interactions (WebSocket setup, etc.)
+    // See previous implementation
+</script>
+{% endblock %}
