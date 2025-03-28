@@ -430,9 +430,14 @@ class ThreadConsumer(AsyncWebsocketConsumer):
                 preferences = recipient.notification_preferences
                 if not preferences.should_notify():
                     continue
+                    
+                # Check if work item is muted by this user
+                if work_item in preferences.muted_channels.all():
+                    continue
             except (AttributeError, NotificationPreference.DoesNotExist):
                 pass  # Continue with notification if no preferences exist
                 
+            # Create only one notification per message
             Notification.objects.create(
                 user=recipient,
                 message=f"{sender.username} posted in '{thread.title}' (in '{work_item.title}')",
