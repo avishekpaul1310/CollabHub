@@ -11,4 +11,6 @@ urlpatterns = [
     path('notifications/', views.notifications_list, name='notifications_list'),
     path('notifications/<int:pk>/read/', views.mark_notification_read, name='mark_notification_read'),
     path('notifications/mark-all-read/', views.mark_all_read, name='mark_all_read'),
+    path('notification-preferences/', views.notification_preferences, name='notification_preferences'),
+    path('notification-preferences/toggle-mute/<int:pk>/', views.toggle_mute_work_item, name='toggle_mute_work_item'),
 ]
