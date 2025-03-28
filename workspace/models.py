@@ -182,8 +182,6 @@ class Thread(models.Model):
                     user in self.work_item.collaborators.all() or 
                     user in self.allowed_users.all() or 
                     self.created_by == user)
-        
-# Add these new models at the end of your models.py file
 
 class ThreadGroup(models.Model):
     work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='thread_groups')

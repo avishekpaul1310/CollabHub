@@ -218,15 +218,31 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 class ThreadConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.thread_id = self.scope['url_route']['kwargs']['thread_id']
+        self.user = self.scope["user"]
+        self.thread = await self.get_thread()
+        
+        # Check if user has permission to access this thread
+        if not await self.check_thread_access():
+            await self.close()
+            return
+        
         self.room_group_name = f'thread_{self.thread_id}'
-
+        
         # Join room group
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
-
+        
         await self.accept()
+
+    @database_sync_to_async
+    def get_thread(self):
+        return Thread.objects.get(id=self.thread_id)
+
+    @database_sync_to_async
+    def check_thread_access(self):
+        return self.thread.user_can_access(self.user)
 
     async def disconnect(self, close_code):
         # Leave room group
@@ -329,41 +345,29 @@ class ThreadConsumer(AsyncWebsocketConsumer):
     
     @database_sync_to_async
     def create_thread_notifications(self, message_obj, sender_id):
-        """Create notifications for thread participants except the sender"""
         thread = message_obj.thread
         work_item = thread.work_item
         sender = User.objects.get(pk=sender_id)
         
-        # Get all users who should be notified (thread participants)
+        # Get all users who should be notified
         recipients = set()
         
-        # Add work item owner
-        if work_item.owner.id != int(sender_id):
-            recipients.add(work_item.owner)
-        
-        # Add work item collaborators
-        for collaborator in work_item.collaborators.all():
-            if collaborator.id != int(sender_id):
-                recipients.add(collaborator)
-        
-        # Add thread allowed users (for private threads)
-        for user in thread.allowed_users.all():
-            if user.id != int(sender_id):
-                recipients.add(user)
-        
-        # Create notifications
-        for recipient in recipients:
-            # Check if user has notification preferences
-            try:
-                preferences = recipient.notification_preferences
-                if not preferences.should_notify():
-                    continue
-            except (AttributeError, NotificationPreference.DoesNotExist):
-                pass  # Continue with notification if no preferences exist
-                
-            Notification.objects.create(
-                user=recipient,
-                message=f"{sender.username} posted in '{thread.title}' (in '{work_item.title}')",
-                work_item=work_item,
-                notification_type='message'
-            )
+        if thread.is_public:
+            # For public threads, notify owner and all collaborators
+            if work_item.owner.id != int(sender_id):
+                recipients.add(work_item.owner)
+            
+            for collaborator in work_item.collaborators.all():
+                if collaborator.id != int(sender_id):
+                    recipients.add(collaborator)
+        else:
+            # For private threads, only notify the allowed users
+            for user in thread.allowed_users.all():
+                if user.id != int(sender_id):
+                    recipients.add(user)
+            
+            # Always include the work item owner if they're explicitly allowed
+            if work_item.owner.id != int(sender_id) and (
+                work_item.owner in thread.allowed_users.all() or thread.created_by == work_item.owner
+            ):
+                recipients.add(work_item.owner)
