@@ -39,12 +39,67 @@
                 </a>
             </div>
         </div>
+        
+        {% if not thread.is_public %}
+        <div class="card-body bg-light">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-user-lock text-warning fa-2x me-3"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="mb-1">Private Thread</h6>
+                    <p class="mb-0">This is a private thread that's only visible to selected participants.</p>
+                </div>
+                
+                <div class="ms-3">
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#participantsCollapse">
+                        <i class="fas fa-users"></i> View Participants
+                    </button>
+                </div>
+            </div>
+            
+            <div class="collapse mt-3" id="participantsCollapse">
+                <div class="card card-body">
+                    <h6 class="mb-2">Thread Participants</h6>
+                    <p class="small text-muted mb-2">Only these users can see and respond to this thread:</p>
+                    <div class="d-flex flex-wrap">
+                        {% for participant in participants %}
+                            <div class="me-2 mb-2">
+                                <span class="badge bg-secondary">
+                                    {{ participant.username }}
+                                    {% if participant == thread.created_by %}
+                                        <i class="fas fa-user-edit ms-1" title="Thread creator"></i>
+                                    {% endif %}
+                                    {% if participant == work_item.owner %}
+                                        <i class="fas fa-crown ms-1" title="Work item owner"></i>
+                                    {% endif %}
+                                </span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Connection Status Card -->
+    <div class="alert alert-info mt-3 mb-3 connection-status">
+        <div class="d-flex align-items-center">
+            <div id="connection-indicator" class="me-2">
+                <span class="spinner-border spinner-border-sm" role="status"></span>
+            </div>
+            <div id="connection-message">Connecting to chat...</div>
+        </div>
     </div>
     
     <!-- Messages Card -->
-    <div class="card mt-4">
+    <div class="card mt-2">
         <div class="card-header">
-            <h5 class="mb-0">Messages</h5>
+            <h5 class="mb-0">
+                Messages
+                <span id="chat-status" class="badge bg-secondary ms-2">Connecting</span>
+            </h5>
         </div>
         <div class="card-body">
             <!-- Messages list container -->
@@ -56,6 +111,12 @@
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <div>
                                     <strong>{{ message.user.username }}</strong>
+                                    {% if message.user == thread.created_by %}
+                                        <span class="badge bg-info ms-1">Creator</span>
+                                    {% endif %}
+                                    {% if message.user == work_item.owner %}
+                                        <span class="badge bg-secondary ms-1">Owner</span>
+                                    {% endif %}
                                 </div>
                                 <small class="text-muted">{{ message.created_at|date:"Y-m-d H:i" }}</small>
                             </div>
@@ -138,6 +199,12 @@
     // Determine WebSocket protocol (ws or wss)
     const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
     
+    // Connection status elements
+    const connectionIndicator = document.getElementById('connection-indicator');
+    const connectionMessage = document.getElementById('connection-message');
+    const connectionStatus = document.querySelector('.connection-status');
+    const chatStatus = document.getElementById('chat-status');
+    
     // Create WebSocket connection
     const chatSocket = new WebSocket(
         wsScheme + '://' + window.location.host + '/ws/thread/' + threadId + '/'
@@ -147,12 +214,19 @@
     chatSocket.onopen = function(e) {
         console.log('WebSocket connection established');
         
-        // Add visual indicator that chat is connected
-        const statusIndicator = document.createElement('span');
-        statusIndicator.id = 'chat-status';
-        statusIndicator.className = 'badge bg-success ms-2';
-        statusIndicator.innerHTML = 'Connected';
-        document.querySelector('.card-header h5').appendChild(statusIndicator);
+        // Update connection status
+        connectionIndicator.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
+        connectionMessage.textContent = 'Connected to chat';
+        connectionStatus.classList.replace('alert-info', 'alert-success');
+        
+        // Update chat status badge
+        chatStatus.className = 'badge bg-success ms-2';
+        chatStatus.innerHTML = 'Connected';
+        
+        // Hide the status after 3 seconds
+        setTimeout(() => {
+            connectionStatus.style.display = 'none';
+        }, 3000);
     };
 
     // Handle WebSocket messages
@@ -310,20 +384,44 @@
     
     // Handle WebSocket connection close
     chatSocket.onclose = function(e) {
-        console.error('WebSocket connection closed unexpectedly');
+        console.error('WebSocket connection closed unexpectedly', e);
         
-        // Update status indicator
-        const statusIndicator = document.getElementById('chat-status');
-        if (statusIndicator) {
-            statusIndicator.className = 'badge bg-danger ms-2';
-            statusIndicator.innerHTML = 'Disconnected';
+        // Update connection status
+        connectionIndicator.innerHTML = '<i class="fas fa-times-circle text-danger"></i>';
+        connectionMessage.innerHTML = 'Disconnected from chat. <a href="#" onclick="window.location.reload()">Refresh the page</a> to reconnect.';
+        connectionStatus.classList.replace('alert-info', 'alert-danger');
+        connectionStatus.style.display = 'block';
+        
+        // Update chat status badge
+        chatStatus.className = 'badge bg-danger ms-2';
+        chatStatus.innerHTML = 'Disconnected';
+        
+        // If the close was due to access denied
+        if (e.code === 4003) {
+            connectionMessage.innerHTML = 'Access denied. You do not have permission to view this thread.';
+            document.getElementById('chat-form').style.display = 'none';
+            
+            // Redirect to work item page after 3 seconds
+            setTimeout(() => {
+                window.location.href = `{% url 'work_item_detail' work_item.pk %}`;
+            }, 3000);
+        } else {
+            // Try to reconnect after a delay
+            setTimeout(function() {
+                console.log('Attempting to reconnect...');
+                window.location.reload();
+            }, 5000);
         }
+    };
+
+    // Handle connection error
+    chatSocket.onerror = function(e) {
+        console.error('WebSocket error:', e);
         
-        // Try to reconnect after a delay
-        setTimeout(function() {
-            console.log('Attempting to reconnect...');
-            window.location.reload();
-        }, 5000);
+        // Update connection status
+        connectionIndicator.innerHTML = '<i class="fas fa-exclamation-triangle text-warning"></i>';
+        connectionMessage.textContent = 'Error connecting to chat. Please try refreshing the page.';
+        connectionStatus.classList.replace('alert-info', 'alert-warning');
     };
 
     // Attach event listeners to message elements
