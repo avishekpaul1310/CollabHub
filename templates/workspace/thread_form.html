@@ -29,11 +29,14 @@
                                    {% if form.is_public.value %}checked{% endif %}>
                             <label class="form-check-label" for="{{ form.is_public.id_for_label }}">Public Thread</label>
                         </div>
-                        <div class="form-text">If unchecked, only selected users will have access to this thread.</div>
+                        <div class="form-text">
+                            If checked, this thread will be visible to all collaborators on this work item.
+                            <br>If unchecked, only selected users below will have access to this thread.
+                        </div>
                     </div>
                     
                     <div id="allowed-users-section" class="mb-3" {% if form.is_public.value %}style="display: none;"{% endif %}>
-                        <label for="{{ form.allowed_users.id_for_label }}" class="form-label">Users with Access</label>
+                        <label for="{{ form.allowed_users.id_for_label }}" class="form-label">Users with Access to this Thread</label>
                         {{ form.allowed_users.errors }}
                         <select name="{{ form.allowed_users.name }}" id="{{ form.allowed_users.id_for_label }}" 
                                class="form-select {% if form.allowed_users.errors %}is-invalid{% endif %}"
@@ -42,6 +45,10 @@
                             <option value="{{ user_obj.id }}" {% if user_obj.id in form.allowed_users.value %}selected{% endif %}>{{ user_obj.username }}</option>
                             {% endfor %}
                         </select>
+                        <div class="alert alert-warning mt-2">
+                            <strong>Important:</strong> Only the users selected above will be able to see and access this thread.
+                            <br>You must select at least one user or the thread will only be visible to you.
+                        </div>
                         <div class="form-text">Hold down Ctrl (Windows) or Command (Mac) to select multiple users.</div>
                     </div>
                     
@@ -62,13 +69,19 @@
         const isPublicCheckbox = document.getElementById('{{ form.is_public.id_for_label }}');
         const allowedUsersSection = document.getElementById('allowed-users-section');
         
-        isPublicCheckbox.addEventListener('change', function() {
-            if (this.checked) {
+        function toggleAllowedUsersSection() {
+            if (isPublicCheckbox.checked) {
                 allowedUsersSection.style.display = 'none';
             } else {
                 allowedUsersSection.style.display = 'block';
             }
-        });
+        }
+        
+        // Initialize on page load
+        toggleAllowedUsersSection();
+        
+        // Update when checkbox changes
+        isPublicCheckbox.addEventListener('change', toggleAllowedUsersSection);
     });
 </script>
 {% endblock %}
