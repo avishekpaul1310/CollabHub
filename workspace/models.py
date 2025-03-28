@@ -30,7 +30,7 @@ class Message(models.Model):
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     
-    # Add threading support back
+    # Threading support
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
     is_thread_starter = models.BooleanField(default=False)
     
