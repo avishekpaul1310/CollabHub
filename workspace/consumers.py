@@ -1,4 +1,5 @@
 import json
+import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import User
@@ -215,6 +216,9 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except (AttributeError, NotificationPreference.DoesNotExist):
             return True  # Default to showing notifications
         
+
+logger = logging.getLogger(__name__)
+
 class ThreadConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.thread_id = self.scope['url_route']['kwargs']['thread_id']
@@ -224,6 +228,7 @@ class ThreadConsumer(AsyncWebsocketConsumer):
         has_access = await self.check_thread_access()
         if not has_access:
             await self.close(code=4003)  # Access denied
+            logger.warning(f"User {self.user.username} denied access to thread {self.thread_id}")
             return
             
         self.room_group_name = f'thread_{self.thread_id}'
@@ -235,6 +240,7 @@ class ThreadConsumer(AsyncWebsocketConsumer):
         )
 
         await self.accept()
+        logger.info(f"User {self.user.username} connected to thread {self.thread_id}")
 
     async def disconnect(self, close_code):
         # Leave room group
@@ -242,6 +248,7 @@ class ThreadConsumer(AsyncWebsocketConsumer):
             self.room_group_name,
             self.channel_name
         )
+        logger.info(f"User {self.user.username} disconnected from thread {self.thread_id}, code: {close_code}")
 
     # Receive message from WebSocket
     async def receive(self, text_data):
@@ -251,20 +258,29 @@ class ThreadConsumer(AsyncWebsocketConsumer):
             user_id = data['user_id']
             parent_id = data.get('parent_id')  # For threaded replies
             
+            logger.info(f"Received message from user {user_id} in thread {self.thread_id}")
+            
             # Verify the user still has access to the thread
             has_access = await self.check_thread_access()
             if not has_access:
                 # Don't process messages if user doesn't have access
+                logger.warning(f"User {user_id} denied message send access to thread {self.thread_id}")
                 return
             
             # Save the message to the database
             message_obj = await self.save_message(user_id, message, parent_id)
+            logger.info(f"Saved message ID {message_obj.id} to database")
             
             # Format timestamp for display
             timestamp = message_obj.created_at.strftime("%Y-%m-%d %H:%M:%S")
             
             # Get username
             username = await self.get_username(user_id)
+            
+            # Get reply count if this is a new parent message
+            reply_count = 0
+            if not parent_id:
+                reply_count = await self.get_reply_count(message_obj.id)
             
             # Send message to room group
             await self.channel_layer.group_send(
@@ -276,40 +292,44 @@ class ThreadConsumer(AsyncWebsocketConsumer):
                     'username': username,
                     'timestamp': timestamp,
                     'message_id': message_obj.id,
-                    'parent_id': message_obj.parent_id,
+                    'parent_id': parent_id,
                     'is_thread_starter': message_obj.is_thread_starter,
-                    'reply_count': message_obj.reply_count
+                    'reply_count': reply_count
                 }
             )
+            logger.info(f"Sent message to group {self.room_group_name}")
             
             # Create notifications for thread members
             await self.create_thread_notifications(message_obj, user_id)
+            
         except Exception as e:
-            print(f"Error processing message: {str(e)}")
-            # Don't re-raise the exception to prevent WebSocket disconnect
+            logger.error(f"Error processing message: {str(e)}", exc_info=True)
+            # Send error notification to the sender but don't disconnect
+            try:
+                await self.send(text_data=json.dumps({
+                    'error': str(e),
+                    'message': "An error occurred sending your message. Please try again."
+                }))
+            except:
+                # If we can't even send the error message, just log it
+                logger.error("Could not send error notification to client")
 
     # Receive message from room group
     async def chat_message(self, event):
-        message = event['message']
-        user_id = event['user_id']
-        username = event['username']
-        timestamp = event['timestamp']
-        message_id = event.get('message_id')
-        parent_id = event.get('parent_id')
-        is_thread_starter = event.get('is_thread_starter', False)
-        reply_count = event.get('reply_count', 0)
-        
-        # Send message to WebSocket
-        await self.send(text_data=json.dumps({
-            'message': message,
-            'user_id': user_id,
-            'username': username,
-            'timestamp': timestamp,
-            'message_id': message_id,
-            'parent_id': parent_id,
-            'is_thread_starter': is_thread_starter,
-            'reply_count': reply_count
-        }))
+        try:
+            # Send message to WebSocket
+            await self.send(text_data=json.dumps({
+                'message': event.get('message', ''),
+                'user_id': event.get('user_id', ''),
+                'username': event.get('username', ''),
+                'timestamp': event.get('timestamp', ''),
+                'message_id': event.get('message_id', ''),
+                'parent_id': event.get('parent_id', None),
+                'is_thread_starter': event.get('is_thread_starter', False),
+                'reply_count': event.get('reply_count', 0)
+            }))
+        except Exception as e:
+            logger.error(f"Error sending message to client: {str(e)}", exc_info=True)
     
     @database_sync_to_async
     def save_message(self, user_id, message, parent_id=None):
@@ -333,7 +353,8 @@ class ThreadConsumer(AsyncWebsocketConsumer):
             # Mark as thread starter if it's a top-level message
             is_thread_starter = True
         
-        return Message.objects.create(
+        # Create and return the message
+        msg = Message.objects.create(
             thread=thread,
             work_item=work_item,  # This was missing before
             user=user,
@@ -341,6 +362,17 @@ class ThreadConsumer(AsyncWebsocketConsumer):
             parent=parent,
             is_thread_starter=is_thread_starter
         )
+        
+        return msg
+    
+    @database_sync_to_async    
+    def get_reply_count(self, message_id):
+        """Get the reply count for a message"""
+        try:
+            message = Message.objects.get(pk=message_id)
+            return message.replies.count()
+        except Message.DoesNotExist:
+            return 0
         
     @database_sync_to_async
     def get_username(self, user_id):
