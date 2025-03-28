@@ -41,6 +41,10 @@ def send_notification(notification):
 @receiver(post_save, sender=Message)
 def create_message_notification(sender, instance, created, **kwargs):
     if created:
+        # Skip notifications for threaded messages - these are handled by the ThreadConsumer
+        if instance.thread is not None:
+            return
+            
         # Get the owner if not the message sender
         recipients = set()
         if instance.work_item.owner.id != instance.user.id:
