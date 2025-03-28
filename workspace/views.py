@@ -7,6 +7,8 @@ from .forms import WorkItemForm, MessageForm, ThreadForm
 from django.db.models import Q
 from .models import Thread, FileAttachment
 from .forms import FileAttachmentForm, NotificationPreferenceForm
+import logging
+logger = logging.getLogger(__name__)
 
 @login_required
 def dashboard(request):
@@ -58,6 +60,14 @@ def thread_detail(request, work_item_pk, thread_pk):
     
     # Check if user has permission to view this thread
     if not thread.user_can_access(request.user):
+        # Log access attempt for debugging
+        logger.warning(
+            f"Access denied to thread #{thread_pk} for user {request.user.username}. " +
+            f"Thread is {'public' if thread.is_public else 'private'}, " +
+            f"user is {'owner' if work_item.owner == request.user else 'not owner'}, " +
+            f"user is {'collaborator' if request.user in work_item.collaborators.all() else 'not collaborator'}, " +
+            f"user is {'in allowed_users' if request.user in thread.allowed_users.all() else 'not in allowed_users'}"
+        )
         messages.error(request, "You don't have permission to view this thread.")
         return redirect('work_item_detail', pk=work_item.pk)
     
@@ -68,10 +78,15 @@ def thread_detail(request, work_item_pk, thread_pk):
     for message in messages_list:
         message.replies_list = message.replies.all()
     
+    # Get the list of participants who can view this thread
+    participants = thread.get_participants()
+    
     context = {
         'work_item': work_item,
         'thread': thread,
-        'messages': messages_list
+        'messages': messages_list,
+        'participants': participants,
+        'is_public': thread.is_public
     }
     return render(request, 'workspace/thread_detail.html', context)
 
