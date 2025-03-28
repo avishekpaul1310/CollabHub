@@ -245,44 +245,48 @@ class ThreadConsumer(AsyncWebsocketConsumer):
 
     # Receive message from WebSocket
     async def receive(self, text_data):
-        data = json.loads(text_data)
-        message = data['message']
-        user_id = data['user_id']
-        parent_id = data.get('parent_id')  # For threaded replies
-        
-        # Verify the user still has access to the thread
-        has_access = await self.check_thread_access()
-        if not has_access:
-            # Don't process messages if user doesn't have access
-            return
-        
-        # Save the message to the database
-        message_obj = await self.save_message(user_id, message, parent_id)
-        
-        # Format timestamp for display
-        timestamp = message_obj.created_at.strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Get username
-        username = await self.get_username(user_id)
-        
-        # Send message to room group
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                'type': 'chat_message',
-                'message': message,
-                'user_id': user_id,
-                'username': username,
-                'timestamp': timestamp,
-                'message_id': message_obj.id,
-                'parent_id': message_obj.parent_id,
-                'is_thread_starter': message_obj.is_thread_starter,
-                'reply_count': message_obj.reply_count
-            }
-        )
-        
-        # Create notifications for thread members
-        await self.create_thread_notifications(message_obj, user_id)
+        try:
+            data = json.loads(text_data)
+            message = data['message']
+            user_id = data['user_id']
+            parent_id = data.get('parent_id')  # For threaded replies
+            
+            # Verify the user still has access to the thread
+            has_access = await self.check_thread_access()
+            if not has_access:
+                # Don't process messages if user doesn't have access
+                return
+            
+            # Save the message to the database
+            message_obj = await self.save_message(user_id, message, parent_id)
+            
+            # Format timestamp for display
+            timestamp = message_obj.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Get username
+            username = await self.get_username(user_id)
+            
+            # Send message to room group
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'chat_message',
+                    'message': message,
+                    'user_id': user_id,
+                    'username': username,
+                    'timestamp': timestamp,
+                    'message_id': message_obj.id,
+                    'parent_id': message_obj.parent_id,
+                    'is_thread_starter': message_obj.is_thread_starter,
+                    'reply_count': message_obj.reply_count
+                }
+            )
+            
+            # Create notifications for thread members
+            await self.create_thread_notifications(message_obj, user_id)
+        except Exception as e:
+            print(f"Error processing message: {str(e)}")
+            # Don't re-raise the exception to prevent WebSocket disconnect
 
     # Receive message from room group
     async def chat_message(self, event):
