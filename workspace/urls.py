@@ -13,4 +13,7 @@ urlpatterns = [
     path('notifications/mark-all-read/', views.mark_all_read, name='mark_all_read'),
     path('notification-preferences/', views.notification_preferences, name='notification_preferences'),
     path('notification-preferences/toggle-mute/<int:pk>/', views.toggle_mute_work_item, name='toggle_mute_work_item'),
+    path('work-item/<int:work_item_pk>/thread/new/', views.create_thread, name='create_thread'),
+    path('work-item/<int:work_item_pk>/thread/<int:thread_pk>/', views.thread_detail, name='thread_detail'),
+    path('work-item/<int:work_item_pk>/thread/<int:thread_pk>/update/', views.update_thread, name='update_thread'),
 ]
