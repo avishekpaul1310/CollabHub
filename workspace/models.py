@@ -72,3 +72,77 @@ class Notification(models.Model):
     
     def __str__(self):
         return f"Notification for {self.user.username}: {self.message[:30]}"
+    
+class NotificationPreference(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='notification_preferences')
+    
+    # Do Not Disturb settings
+    dnd_enabled = models.BooleanField(default=False)
+    dnd_start_time = models.TimeField(null=True, blank=True)
+    dnd_end_time = models.TimeField(null=True, blank=True)
+    
+    # Work days/hours
+    work_days = models.CharField(max_length=20, default="12345", help_text="Days of week (1-7, where 1 is Monday)")
+    work_start_time = models.TimeField(default="09:00")
+    work_end_time = models.TimeField(default="17:00")
+    
+    # Channel preferences
+    muted_channels = models.ManyToManyField(WorkItem, related_name='muted_by_users', blank=True)
+    
+    # Mode settings
+    NOTIFICATION_MODES = [
+        ('all', 'All Notifications'),
+        ('mentions', 'Mentions Only'),
+        ('none', 'None'),
+    ]
+    notification_mode = models.CharField(max_length=10, choices=NOTIFICATION_MODES, default='all')
+    
+    def __str__(self):
+        return f"{self.user.username}'s notification preferences"
+    
+    def is_in_dnd_period(self):
+        """Check if current time is within DND period"""
+        if not self.dnd_enabled or not self.dnd_start_time or not self.dnd_end_time:
+            return False
+            
+        from django.utils import timezone
+        now = timezone.localtime().time()
+        
+        # Handle case where DND period spans midnight
+        if self.dnd_start_time > self.dnd_end_time:
+            return now >= self.dnd_start_time or now <= self.dnd_end_time
+        else:
+            return self.dnd_start_time <= now <= self.dnd_end_time
+    
+    def should_notify(self, work_item=None):
+        """Determine if user should be notified based on preferences"""
+        # Check DND period
+        if self.is_in_dnd_period():
+            return False
+            
+        # Check work hours
+        from django.utils import timezone
+        import datetime
+        
+        now = timezone.localtime()
+        current_weekday = str(now.weekday() + 1)  # 1 is Monday in our system
+        current_time = now.time()
+        
+        in_work_hours = (
+            current_weekday in self.work_days and
+            self.work_start_time <= current_time <= self.work_end_time
+        )
+        
+        # If outside work hours and not in a special channel, don't notify
+        if not in_work_hours and work_item and not getattr(work_item, 'priority', 'normal') == 'high':
+            return False
+            
+        # Check notification mode
+        if self.notification_mode == 'none':
+            return False
+            
+        # Check muted channels
+        if work_item and self.muted_channels.filter(id=work_item.id).exists():
+            return False
+            
+        return True
