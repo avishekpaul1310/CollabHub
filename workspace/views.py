@@ -2,11 +2,11 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
-from .models import WorkItem, Message, Notification
+from .models import WorkItem, Message, Notification, NotificationPreference
 from .forms import WorkItemForm, MessageForm
 from django.db.models import Q
 from .models import FileAttachment
-from .forms import FileAttachmentForm
+from .forms import FileAttachmentForm, NotificationPreferenceForm
 
 @login_required
 def dashboard(request):
@@ -163,3 +163,52 @@ def mark_all_read(request):
     
     # Otherwise redirect back to notifications list
     return redirect('notifications_list')
+
+@login_required
+def notification_preferences(request):
+    """View to manage notification preferences"""
+    try:
+        preferences = request.user.notification_preferences
+    except NotificationPreference.DoesNotExist:
+        preferences = NotificationPreference.objects.create(user=request.user)
+    
+    if request.method == 'POST':
+        form = NotificationPreferenceForm(request.POST, instance=preferences)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Your notification preferences have been updated!')
+            return redirect('notification_preferences')
+    else:
+        form = NotificationPreferenceForm(instance=preferences)
+    
+    # Get all work items for mute settings
+    work_items = WorkItem.objects.filter(
+        Q(owner=request.user) | Q(collaborators=request.user)
+    ).distinct()
+    
+    muted_items = preferences.muted_channels.all()
+    
+    context = {
+        'form': form,
+        'work_items': work_items,
+        'muted_items': muted_items
+    }
+    return render(request, 'workspace/notification_preferences.html', context)
+
+@login_required
+def toggle_mute_work_item(request, pk):
+    """Ajax view to toggle muting a work item"""
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        work_item = get_object_or_404(WorkItem, pk=pk)
+        preferences = request.user.notification_preferences
+        
+        if preferences.muted_channels.filter(id=pk).exists():
+            preferences.muted_channels.remove(work_item)
+            is_muted = False
+        else:
+            preferences.muted_channels.add(work_item)
+            is_muted = True
+        
+        return JsonResponse({'status': 'success', 'is_muted': is_muted})
+    
+    return JsonResponse({'status': 'error'}, status=400)
