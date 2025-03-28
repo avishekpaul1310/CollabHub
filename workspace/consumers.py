@@ -311,6 +311,7 @@ class ThreadConsumer(AsyncWebsocketConsumer):
     def save_message(self, user_id, message, parent_id=None):
         user = User.objects.get(pk=user_id)
         thread = Thread.objects.get(pk=self.thread_id)
+        work_item = thread.work_item  # Get the work_item from the thread
         
         # Set up parent message if this is a reply
         parent = None
@@ -330,6 +331,7 @@ class ThreadConsumer(AsyncWebsocketConsumer):
         
         return Message.objects.create(
             thread=thread,
+            work_item=work_item,  # This was missing before
             user=user,
             content=message,
             parent=parent,
