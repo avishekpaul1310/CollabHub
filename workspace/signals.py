@@ -10,6 +10,17 @@ import json
 channel_layer = get_channel_layer()
 
 def send_notification(notification):
+    # Check if user should receive notification based on preferences
+    try:
+        preferences = notification.user.notification_preferences
+        if not preferences.should_notify(notification.work_item):
+            # Still save the notification but mark it as "delayed" - optional
+            notification.is_delayed = True
+            notification.save()
+            return
+    except (AttributeError, NotificationPreference.DoesNotExist):
+        pass  # If no preferences exist, continue with notification
+    
     notification_data = {
         'id': notification.id,
         'message': notification.message,
