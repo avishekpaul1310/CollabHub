@@ -2,7 +2,7 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import User
-from .models import WorkItem, Message, Notification, NotificationPreference
+from .models import WorkItem, Message, Notification, NotificationPreference, Thread
 from django.utils import timezone
 import datetime
 
@@ -214,3 +214,156 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             return preferences.should_notify()
         except (AttributeError, NotificationPreference.DoesNotExist):
             return True  # Default to showing notifications
+        
+class ThreadConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.thread_id = self.scope['url_route']['kwargs']['thread_id']
+        self.room_group_name = f'thread_{self.thread_id}'
+
+        # Join room group
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        # Leave room group
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    # Receive message from WebSocket
+    async def receive(self, text_data):
+        data = json.loads(text_data)
+        message = data['message']
+        user_id = data['user_id']
+        parent_id = data.get('parent_id')  # For threaded replies
+        
+        # Save the message to the database
+        message_obj = await self.save_message(user_id, message, parent_id)
+        
+        # Format timestamp for display
+        timestamp = message_obj.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Get username
+        username = await self.get_username(user_id)
+        
+        # Send message to room group
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'chat_message',
+                'message': message,
+                'user_id': user_id,
+                'username': username,
+                'timestamp': timestamp,
+                'message_id': message_obj.id,
+                'parent_id': message_obj.parent_id,
+                'is_thread_starter': message_obj.is_thread_starter,
+                'reply_count': message_obj.reply_count
+            }
+        )
+        
+        # Create notifications for thread members
+        await self.create_thread_notifications(message_obj, user_id)
+
+    # Receive message from room group
+    async def chat_message(self, event):
+        message = event['message']
+        user_id = event['user_id']
+        username = event['username']
+        timestamp = event['timestamp']
+        message_id = event.get('message_id')
+        parent_id = event.get('parent_id')
+        is_thread_starter = event.get('is_thread_starter', False)
+        reply_count = event.get('reply_count', 0)
+        
+        # Send message to WebSocket
+        await self.send(text_data=json.dumps({
+            'message': message,
+            'user_id': user_id,
+            'username': username,
+            'timestamp': timestamp,
+            'message_id': message_id,
+            'parent_id': parent_id,
+            'is_thread_starter': is_thread_starter,
+            'reply_count': reply_count
+        }))
+    
+    @database_sync_to_async
+    def save_message(self, user_id, message, parent_id=None):
+        user = User.objects.get(pk=user_id)
+        thread = Thread.objects.get(pk=self.thread_id)
+        
+        # Set up parent message if this is a reply
+        parent = None
+        is_thread_starter = False
+        
+        if parent_id:
+            try:
+                parent = Message.objects.get(pk=parent_id)
+                # If parent already has a parent, use the original parent
+                if parent.parent:
+                    parent = parent.parent
+            except Message.DoesNotExist:
+                pass
+        else:
+            # Mark as thread starter if it's a top-level message
+            is_thread_starter = True
+        
+        return Message.objects.create(
+            thread=thread,
+            user=user,
+            content=message,
+            parent=parent,
+            is_thread_starter=is_thread_starter
+        )
+        
+    @database_sync_to_async
+    def get_username(self, user_id):
+        user = User.objects.get(pk=user_id)
+        return user.username
+    
+    @database_sync_to_async
+    def create_thread_notifications(self, message_obj, sender_id):
+        """Create notifications for thread participants except the sender"""
+        thread = message_obj.thread
+        work_item = thread.work_item
+        sender = User.objects.get(pk=sender_id)
+        
+        # Get all users who should be notified (thread participants)
+        recipients = set()
+        
+        # Add work item owner
+        if work_item.owner.id != int(sender_id):
+            recipients.add(work_item.owner)
+        
+        # Add work item collaborators
+        for collaborator in work_item.collaborators.all():
+            if collaborator.id != int(sender_id):
+                recipients.add(collaborator)
+        
+        # Add thread allowed users (for private threads)
+        for user in thread.allowed_users.all():
+            if user.id != int(sender_id):
+                recipients.add(user)
+        
+        # Create notifications
+        for recipient in recipients:
+            # Check if user has notification preferences
+            try:
+                preferences = recipient.notification_preferences
+                if not preferences.should_notify():
+                    continue
+            except (AttributeError, NotificationPreference.DoesNotExist):
+                pass  # Continue with notification if no preferences exist
+                
+            Notification.objects.create(
+                user=recipient,
+                message=f"{sender.username} posted in '{thread.title}' (in '{work_item.title}')",
+                work_item=work_item,
+                notification_type='message'
+            )
