@@ -1,5 +1,5 @@
 from django import forms
-from .models import WorkItem, Message, FileAttachment, NotificationPreference
+from .models import WorkItem, Message, FileAttachment, NotificationPreference, Thread
 from django.contrib.auth.models import User
 
 class WorkItemForm(forms.ModelForm):
@@ -73,3 +73,34 @@ class NotificationPreferenceForm(forms.ModelForm):
                 ('4', 'Thursday'), ('5', 'Friday'), ('6', 'Saturday'), ('7', 'Sunday')
             ])
         }
+
+class ThreadForm(forms.ModelForm):
+    class Meta:
+        model = Thread
+        fields = ['title', 'is_public', 'allowed_users']
+        
+    def __init__(self, *args, **kwargs):
+        self.work_item = kwargs.pop('work_item', None)
+        self.user = kwargs.pop('user', None)
+        super(ThreadForm, self).__init__(*args, **kwargs)
+        
+        # Limit allowed users to collaborators of the work item
+        if self.work_item:
+            collaborators = self.work_item.collaborators.all()
+            self.fields['allowed_users'].queryset = collaborators
+            self.fields['allowed_users'].label = "Select users who can access this thread"
+            
+    def save(self, commit=True):
+        instance = super(ThreadForm, self).save(commit=False)
+        
+        if self.work_item and not instance.pk:
+            instance.work_item = self.work_item
+            
+        if self.user and not instance.pk:
+            instance.created_by = self.user
+            
+        if commit:
+            instance.save()
+            self.save_m2m()
+            
+        return instance
