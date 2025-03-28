@@ -1,6 +1,6 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Message, WorkItem, Notification, FileAttachment
+from .models import Message, WorkItem, Notification, FileAttachment, NotificationPreference
 from django.contrib.auth.models import User
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -85,3 +85,17 @@ def create_file_upload_notification(sender, instance, created, **kwargs):
                 notification_type='file_upload'
             )
             send_notification(notification)
+
+@receiver(post_save, sender=User)
+def create_notification_preferences(sender, instance, created, **kwargs):
+    """Create default notification preferences for new users"""
+    if created:
+        NotificationPreference.objects.create(user=instance)
+
+@receiver(post_save, sender=User)
+def save_notification_preferences(sender, instance, **kwargs):
+    """Save notification preferences when user is saved"""
+    try:
+        instance.notification_preferences.save()
+    except NotificationPreference.DoesNotExist:
+        NotificationPreference.objects.create(user=instance)
