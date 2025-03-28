@@ -2,7 +2,7 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import User
-from .models import WorkItem, Message, Notification
+from .models import WorkItem, Message, Notification, NotificationPreference
 from django.utils import timezone
 import datetime
 
@@ -189,9 +189,28 @@ class NotificationConsumer(AsyncWebsocketConsumer):
     
     # Custom method to send notification to client
     async def notification_message(self, event):
+        # Check if user should receive this notification based on preferences
+        user = self.scope["user"]
+        
+        try:
+            # Use database_sync_to_async since we're in an async context
+            should_notify = await self.check_notification_preferences(user)
+            if not should_notify:
+                return  # Skip sending if user shouldn't be notified
+        except Exception:
+            pass  # If there's an error checking preferences, continue with notification
+        
         # Send notification to WebSocket
         await self.send(text_data=json.dumps({
             'type': 'notification',
             'message': event['message'],
             'count': event['count']
         }))
+    
+    @database_sync_to_async
+    def check_notification_preferences(self, user):
+        try:
+            preferences = user.notification_preferences
+            return preferences.should_notify()
+        except (AttributeError, NotificationPreference.DoesNotExist):
+            return True  # Default to showing notifications
