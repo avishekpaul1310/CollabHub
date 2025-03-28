@@ -146,3 +146,33 @@ class NotificationPreference(models.Model):
             return False
             
         return True
+    
+class Thread(models.Model):
+    work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='threads')
+    title = models.CharField(max_length=255)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_threads')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Permission fields
+    is_public = models.BooleanField(default=True)
+    # Users who can access this thread, regardless of work_item permissions
+    allowed_users = models.ManyToManyField(User, related_name='accessible_threads', blank=True)
+    
+    class Meta:
+        ordering = ['-updated_at']
+    
+    def __str__(self):
+        return self.title
+    
+    def user_can_access(self, user):
+        """Check if a user can access this thread"""
+        if self.is_public:
+            # If public, check if user can access the parent work item
+            return self.work_item.owner == user or user in self.work_item.collaborators.all()
+        else:
+            # If private, check if user is explicitly allowed
+            return (self.work_item.owner == user or 
+                    user in self.work_item.collaborators.all() or 
+                    user in self.allowed_users.all() or 
+                    self.created_by == user)
