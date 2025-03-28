@@ -40,6 +40,11 @@ class Message(models.Model):
     def __str__(self):
         return f"{self.user.username}: {self.content}"
     
+    @property
+    def reply_count(self):
+        """Get the count of replies to this message"""
+        return self.replies.count() if hasattr(self, 'replies') else 0
+    
 class FileAttachment(models.Model):
     work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='files')
     file = models.FileField(upload_to='work_item_files/')
