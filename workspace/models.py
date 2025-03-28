@@ -24,8 +24,8 @@ class WorkItem(models.Model):
         ordering = ['-updated_at']
 
 class Message(models.Model):
-    #thread = models.ForeignKey('Thread', on_delete=models.CASCADE, related_name='messages', null=True, blank=True)
     work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='messages')
+    thread = models.ForeignKey('Thread', on_delete=models.CASCADE, related_name='messages', null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='messages')
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -187,3 +187,56 @@ class Thread(models.Model):
                     user in self.work_item.collaborators.all() or 
                     user in self.allowed_users.all() or 
                     self.created_by == user)
+        
+# Add these new models at the end of your models.py file
+
+class ThreadGroup(models.Model):
+    work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='thread_groups')
+    title = models.CharField(max_length=255)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_thread_groups')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Permission fields
+    is_public = models.BooleanField(default=True)
+    # Users who can access this thread, regardless of work_item permissions
+    allowed_users = models.ManyToManyField(User, related_name='accessible_thread_groups', blank=True)
+    
+    class Meta:
+        ordering = ['-updated_at']
+    
+    def __str__(self):
+        return self.title
+    
+    def user_can_access(self, user):
+        """Check if a user can access this thread"""
+        if self.is_public:
+            # If public, check if user can access the parent work item
+            return self.work_item.owner == user or user in self.work_item.collaborators.all()
+        else:
+            # If private, check if user is explicitly allowed
+            return (self.work_item.owner == user or 
+                    user in self.work_item.collaborators.all() or 
+                    user in self.allowed_users.all() or 
+                    self.created_by == user)
+
+class ThreadMessage(models.Model):
+    thread_group = models.ForeignKey(ThreadGroup, on_delete=models.CASCADE, related_name='thread_messages')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='thread_messages')
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Threading support
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
+    is_thread_starter = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f"{self.user.username}: {self.content[:50]}"
+    
+    @property
+    def reply_count(self):
+        """Get the count of replies to this message"""
+        return self.replies.count()
