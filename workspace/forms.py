@@ -84,23 +84,54 @@ class ThreadForm(forms.ModelForm):
         self.user = kwargs.pop('user', None)
         super(ThreadForm, self).__init__(*args, **kwargs)
         
-        # Limit allowed users to collaborators of the work item
+        # Limit allowed users to collaborators of the work item plus the owner
         if self.work_item:
-            collaborators = self.work_item.collaborators.all()
-            self.fields['allowed_users'].queryset = collaborators
-            self.fields['allowed_users'].label = "Select users who can access this thread"
+            # Get all collaborators plus the owner
+            collaborators = list(self.work_item.collaborators.all())
+            
+            # Add the owner if they're not already in the list
+            if self.work_item.owner not in collaborators:
+                collaborators.append(self.work_item.owner)
+                
+            # Remove current user from the list (they're automatically included)
+            if self.user in collaborators:
+                collaborators.remove(self.user)
+                
+            # Set the queryset
+            self.fields['allowed_users'].queryset = User.objects.filter(id__in=[user.id for user in collaborators])
+            self.fields['allowed_users'].help_text = "Select users who will have access to this private thread"
+            
+    def clean(self):
+        cleaned_data = super().clean()
+        is_public = cleaned_data.get('is_public')
+        allowed_users = cleaned_data.get('allowed_users')
+        
+        # If thread is private but no users are selected, show an error
+        if not is_public and not allowed_users:
+            self.add_error('allowed_users', 'For a private thread, you must select at least one user to share with.')
+            
+        return cleaned_data
             
     def save(self, commit=True):
         instance = super(ThreadForm, self).save(commit=False)
         
+        # Set the work item if this is a new thread
         if self.work_item and not instance.pk:
             instance.work_item = self.work_item
             
+        # Set the creator if this is a new thread
         if self.user and not instance.pk:
             instance.created_by = self.user
             
         if commit:
             instance.save()
+            
+            # Save many-to-many relationships
             self.save_m2m()
+            
+            # For private threads, make sure the creator has access
+            if not instance.is_public and self.user:
+                # This step is important - the creator might not be in allowed_users
+                instance.allowed_users.add(self.user)
             
         return instance
