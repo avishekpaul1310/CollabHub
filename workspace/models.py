@@ -24,9 +24,8 @@ class WorkItem(models.Model):
         ordering = ['-updated_at']
 
 class Message(models.Model):
-    thread = models.ForeignKey('Thread', on_delete=models.CASCADE, related_name='messages')
-    # Remove work_item field
-    # work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='messages')
+    thread = models.ForeignKey('Thread', on_delete=models.CASCADE, related_name='messages', null=True, blank=True)
+    work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='messages')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='messages')
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
