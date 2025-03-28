@@ -223,8 +223,11 @@
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
-                            <li><a class="dropdown-item text-center" href="{% url 'notifications_list' %}">View all
-                                    notifications</a>
+                            <li><a class="dropdown-item" href="{% url 'notification_preferences' %}">
+                                    <i class="fas fa-cog"></i> Notification Settings
+                                </a></li>
+                            <li><a class="dropdown-item text-center" href="{% url 'notifications_list' %}">View all notifications</a></li>
+                        
                             </li>
                             {% else %}
                             <li><a class="dropdown-item" href="#">No notifications</a></li>
