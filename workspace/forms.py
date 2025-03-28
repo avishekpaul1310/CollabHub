@@ -1,5 +1,5 @@
 from django import forms
-from .models import WorkItem, Message, FileAttachment
+from .models import WorkItem, Message, FileAttachment, NotificationPreference
 from django.contrib.auth.models import User
 
 class WorkItemForm(forms.ModelForm):
@@ -56,3 +56,20 @@ class FileAttachmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['file'].label = ''
+
+class NotificationPreferenceForm(forms.ModelForm):
+    class Meta:
+        model = NotificationPreference
+        fields = ['dnd_enabled', 'dnd_start_time', 'dnd_end_time', 
+                  'work_days', 'work_start_time', 'work_end_time',
+                  'notification_mode']
+        widgets = {
+            'dnd_start_time': forms.TimeInput(attrs={'type': 'time'}),
+            'dnd_end_time': forms.TimeInput(attrs={'type': 'time'}),
+            'work_start_time': forms.TimeInput(attrs={'type': 'time'}),
+            'work_end_time': forms.TimeInput(attrs={'type': 'time'}),
+            'work_days': forms.CheckboxSelectMultiple(choices=[
+                ('1', 'Monday'), ('2', 'Tuesday'), ('3', 'Wednesday'),
+                ('4', 'Thursday'), ('5', 'Friday'), ('6', 'Saturday'), ('7', 'Sunday')
+            ])
+        }
