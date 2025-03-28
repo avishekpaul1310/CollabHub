@@ -24,16 +24,27 @@ class WorkItem(models.Model):
         ordering = ['-updated_at']
 
 class Message(models.Model):
-    work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='messages')
+    thread = models.ForeignKey('Thread', on_delete=models.CASCADE, related_name='messages')
+    # Remove work_item field
+    # work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='messages')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='messages')
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Keep threading support
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
+    is_thread_starter = models.BooleanField(default=False)
     
     class Meta:
         ordering = ['created_at']
     
     def __str__(self):
-        return f"{self.user.username}: {self.content}"
+        return f"{self.user.username}: {self.content[:50]}"
+    
+    @property
+    def reply_count(self):
+        """Get the count of replies to this message"""
+        return self.replies.count()
     
 class FileAttachment(models.Model):
     work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='files')
