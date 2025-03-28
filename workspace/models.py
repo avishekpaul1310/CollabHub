@@ -24,7 +24,7 @@ class WorkItem(models.Model):
         ordering = ['-updated_at']
 
 class Message(models.Model):
-    thread = models.ForeignKey('Thread', on_delete=models.CASCADE, related_name='messages', null=True, blank=True)
+    #thread = models.ForeignKey('Thread', on_delete=models.CASCADE, related_name='messages', null=True, blank=True)
     work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='messages')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='messages')
     content = models.TextField()
@@ -157,6 +157,7 @@ class NotificationPreference(models.Model):
             
         return True
     
+
 class Thread(models.Model):
     work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='threads')
     title = models.CharField(max_length=255)
