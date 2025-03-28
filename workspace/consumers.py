@@ -219,30 +219,22 @@ class ThreadConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.thread_id = self.scope['url_route']['kwargs']['thread_id']
         self.user = self.scope["user"]
-        self.thread = await self.get_thread()
         
-        # Check if user has permission to access this thread
-        if not await self.check_thread_access():
-            await self.close()
+        # Check if the user has access to this thread
+        has_access = await self.check_thread_access()
+        if not has_access:
+            await self.close(code=4003)  # Access denied
             return
-        
+            
         self.room_group_name = f'thread_{self.thread_id}'
-        
+
         # Join room group
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
-        
+
         await self.accept()
-
-    @database_sync_to_async
-    def get_thread(self):
-        return Thread.objects.get(id=self.thread_id)
-
-    @database_sync_to_async
-    def check_thread_access(self):
-        return self.thread.user_can_access(self.user)
 
     async def disconnect(self, close_code):
         # Leave room group
@@ -257,6 +249,12 @@ class ThreadConsumer(AsyncWebsocketConsumer):
         message = data['message']
         user_id = data['user_id']
         parent_id = data.get('parent_id')  # For threaded replies
+        
+        # Verify the user still has access to the thread
+        has_access = await self.check_thread_access()
+        if not has_access:
+            # Don't process messages if user doesn't have access
+            return
         
         # Save the message to the database
         message_obj = await self.save_message(user_id, message, parent_id)
@@ -344,16 +342,26 @@ class ThreadConsumer(AsyncWebsocketConsumer):
         return user.username
     
     @database_sync_to_async
+    def check_thread_access(self):
+        """Check if the current user has access to this thread"""
+        try:
+            thread = Thread.objects.get(pk=self.thread_id)
+            return thread.user_can_access(self.scope["user"])
+        except Thread.DoesNotExist:
+            return False
+    
+    @database_sync_to_async
     def create_thread_notifications(self, message_obj, sender_id):
+        """Create notifications for thread participants except the sender"""
         thread = message_obj.thread
         work_item = thread.work_item
         sender = User.objects.get(pk=sender_id)
         
-        # Get all users who should be notified
+        # Get all users who should be notified (thread participants)
         recipients = set()
         
         if thread.is_public:
-            # For public threads, notify owner and all collaborators
+            # For public threads, notify all work item collaborators and owner
             if work_item.owner.id != int(sender_id):
                 recipients.add(work_item.owner)
             
@@ -361,13 +369,35 @@ class ThreadConsumer(AsyncWebsocketConsumer):
                 if collaborator.id != int(sender_id):
                     recipients.add(collaborator)
         else:
-            # For private threads, only notify the allowed users
+            # For private threads, ONLY notify explicitly allowed users
             for user in thread.allowed_users.all():
                 if user.id != int(sender_id):
                     recipients.add(user)
             
-            # Always include the work item owner if they're explicitly allowed
+            # Always include thread creator
+            if thread.created_by.id != int(sender_id):
+                recipients.add(thread.created_by)
+                
+            # Include work item owner only if they are explicitly allowed
             if work_item.owner.id != int(sender_id) and (
-                work_item.owner in thread.allowed_users.all() or thread.created_by == work_item.owner
+                work_item.owner in thread.allowed_users.all() or 
+                work_item.owner == thread.created_by
             ):
                 recipients.add(work_item.owner)
+        
+        # Create notifications for each recipient
+        for recipient in recipients:
+            # Check if user has notification preferences
+            try:
+                preferences = recipient.notification_preferences
+                if not preferences.should_notify():
+                    continue
+            except (AttributeError, NotificationPreference.DoesNotExist):
+                pass  # Continue with notification if no preferences exist
+                
+            Notification.objects.create(
+                user=recipient,
+                message=f"{sender.username} posted in '{thread.title}' (in '{work_item.title}')",
+                work_item=work_item,
+                notification_type='message'
+            )
