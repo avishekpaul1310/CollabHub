@@ -70,8 +70,8 @@
                                 {% for day_value, day_label in form.work_days.field.widget.choices %}
                                 <div class="form-check me-3 mb-2">
                                     <input type="checkbox" name="{{ form.work_days.name }}" id="id_work_days_{{ forloop.counter0 }}"
-                                        value="{{ day_value }}" class="form-check-input" {% if day_value in form.work_days.value %}checked{%
-                                        endif %}>
+                                        value="{{ day_value }}" class="form-check-input" 
+                                        {% if day_value in form.work_days.value %}checked{% endif %}>
                                     <label for="id_work_days_{{ forloop.counter0 }}" class="form-check-label">{{ day_label }}</label>
                                 </div>
                                 {% endfor %}
