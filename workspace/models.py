@@ -266,8 +266,6 @@ class ThreadMessage(models.Model):
     def reply_count(self):
         """Get the count of replies to this message"""
         return self.replies.count()
-    
-# Add this to workspace/models.py
 
 class ScheduledMessage(models.Model):
     """Model for messages that are scheduled to be sent at a future time"""
@@ -331,4 +329,23 @@ class ScheduledMessage(models.Model):
             logger = logging.getLogger(__name__)
             logger.error(f"Error sending scheduled message {self.id}: {str(e)}")
             return False
+
+class MessageReadReceipt(models.Model):
+    """Model to track when messages are read by users"""
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='read_receipts')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='read_receipts')
+    read_at = models.DateTimeField(auto_now_add=True)
+    
+    # Optional fields to track engagement level
+    read_duration = models.DurationField(null=True, blank=True, 
+                                       help_text="How long the user spent viewing this message")
+    has_responded = models.BooleanField(default=False)
+    
+    class Meta:
+        unique_together = ['message', 'user']
+        ordering = ['read_at']
+    
+    def __str__(self):
+        return f"{self.user.username} read message {self.message.id} at {self.read_at}"
+
 
