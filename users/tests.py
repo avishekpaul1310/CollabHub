@@ -101,11 +101,9 @@ class UserAuthenticationTests(TestCase):
         self.assertTrue(form.errors)
         self.assertIn('password2', form.errors)
         
-        # Use assertFormError instead of trying to parse the error text ourselves
-        self.assertFormError(response, 'form', 'password2', None)
-        
-        # Or alternatively, just check that any error exists for password2
-        self.assertTrue(len(form.errors['password2']) > 0)
+        # Just verify that the passwords didn't match by checking
+        # that the user wasn't created
+        self.assertFalse(User.objects.filter(username='newuser').exists())
     
     def test_register_existing_username(self):
         """Test registration with an existing username."""
