@@ -96,13 +96,14 @@ class UserAuthenticationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(User.objects.count(), 1)
         
-        # Check for error message
+        # Check if form has the expected error
         form = response.context.get('form')
         self.assertTrue(form.errors)
         self.assertIn('password2', form.errors)
         
-        # Use assertIn instead of assertFormError
-        self.assertIn("The two password fields didn't match.", form.errors['password2'])
+        # Check that the error message is in the list of errors
+        password_errors = form.errors['password2']
+        self.assertIn("The two password fields didn't match.", password_errors[0])
     
     def test_register_existing_username(self):
         """Test registration with an existing username."""
@@ -300,27 +301,18 @@ class NotificationPreferenceTests(TestCase):
         data = {
             'notification_mode': 'mentions',
             'dnd_enabled': False,
-            'work_days': ['1', '2', '3', '4', '5'],
-            'work_start_time': '09:00:00',
-            'work_end_time': '17:00:00',
+            # Use individual strings instead of a list
+            'work_days': '12345',  # Monday through Friday
+            'work_start_time': '09:00',
+            'work_end_time': '17:00',
             'show_online_status': False,
             'share_read_receipts': True
         }
         
         response = self.client.post(self.preferences_url, data)
         
-        # Print response for debugging
-        print("Response status:", response.status_code)
-        
-        if response.context and 'form' in response.context:
-            print("Form errors:", response.context['form'].errors)
-        
         # Refresh from database
         self.user.notification_preferences.refresh_from_db()
-        
-        # Debug actual values
-        print("Expected notification_mode:", data['notification_mode'])
-        print("Actual notification_mode:", self.user.notification_preferences.notification_mode)
         
         # Check that preferences were updated
         self.assertEqual(self.user.notification_preferences.notification_mode, 'mentions')
@@ -329,28 +321,20 @@ class NotificationPreferenceTests(TestCase):
         """Test updating Do Not Disturb settings."""
         data = {
             'notification_mode': 'all',
-            'dnd_enabled': True,  # Setting to True
-            'dnd_start_time': '22:00:00',
-            'dnd_end_time': '08:00:00',
-            'work_days': ['1', '2', '3', '4', '5'],
-            'work_start_time': '09:00:00',
-            'work_end_time': '17:00:00',
+            'dnd_enabled': True,
+            'dnd_start_time': '22:00',
+            'dnd_end_time': '08:00',
+            'work_days': '12345',
+            'work_start_time': '09:00',
+            'work_end_time': '17:00',
             'show_online_status': False,
             'share_read_receipts': True
         }
         
-        response = self.client.post(self.preferences_url, data, follow=True)
-        
-        # Debug response
-        print("Response status:", response.status_code)
-        if response.context and 'form' in response.context:
-            print("Form errors:", response.context['form'].errors)
+        response = self.client.post(self.preferences_url, data)
         
         # Refresh from database
         self.user.notification_preferences.refresh_from_db()
-        
-        # Debug actual value
-        print("DND enabled:", self.user.notification_preferences.dnd_enabled)
         
         # Check that preferences were updated
         self.assertTrue(self.user.notification_preferences.dnd_enabled)
@@ -360,26 +344,17 @@ class NotificationPreferenceTests(TestCase):
         data = {
             'notification_mode': 'all',
             'dnd_enabled': False,
-            # Use a list to provide multiple values
-            'work_days': ['1', '3', '5'],  # Monday, Wednesday, Friday
-            'work_start_time': '10:00:00',
-            'work_end_time': '16:00:00',
+            'work_days': '135',  # Monday, Wednesday, Friday
+            'work_start_time': '10:00',
+            'work_end_time': '16:00',
             'show_online_status': False,
             'share_read_receipts': True
         }
         
         response = self.client.post(self.preferences_url, data)
         
-        # Debug response
-        print("Response status:", response.status_code)
-        if response.context and 'form' in response.context:
-            print("Form errors:", response.context['form'].errors)
-        
         # Refresh from database
         self.user.notification_preferences.refresh_from_db()
-        
-        # Debug actual value
-        print("Work days value:", self.user.notification_preferences.work_days)
         
         # Check that preferences were updated
         self.assertEqual(self.user.notification_preferences.work_days, '135')
@@ -389,9 +364,9 @@ class NotificationPreferenceTests(TestCase):
         data = {
             'notification_mode': 'all',
             'dnd_enabled': False,
-            'work_days': ['1', '2', '3', '4', '5'],
-            'work_start_time': '09:00:00',
-            'work_end_time': '17:00:00',
+            'work_days': '12345',
+            'work_start_time': '09:00',
+            'work_end_time': '17:00',
             'show_online_status': True,
             'share_read_receipts': False
         }
@@ -559,25 +534,26 @@ class NotificationTests(TestCase):
     def test_notification_during_work_hours(self):
         """Test should_notify based on work hours."""
         prefs = self.user1.notification_preferences
-        
-        # Test with current time outside work hours
-        # Set work days to not include today
-        current_weekday = str(timezone.now().weekday() + 1)  # 1 is Monday
-        if current_weekday == '1':
-            # If today is Monday, set work days to Tuesday-Friday
-            prefs.work_days = '2345'
-        else:
-            # Otherwise exclude current day
-            all_days = '1234567'
-            prefs.work_days = all_days.replace(current_weekday, '')
-        
+
+        # Set work hours to not include current time
+        current_weekday = timezone.now().weekday()  # 0 is Monday in Python
+
+        # Map Python's weekday to our 1-7 format
+        current_day_str = str(current_weekday + 1)
+
+        # Set work days to exclude current day
+        all_days = "1234567"
+        work_days = "".join([d for d in all_days if d != current_day_str])
+
+        # Set work days
+        prefs.work_days = work_days
         prefs.save()
-        
-        # Debug
-        print("Current weekday:", current_weekday)
+
+        print("Current weekday (0-indexed):", current_weekday)
+        print("Current weekday (1-indexed):", current_day_str)
         print("Work days:", prefs.work_days)
-        
-        # Check that notification should not be shown outside work hours
+
+        # Now we check - should return False as current day is not a work day
         self.assertFalse(prefs.should_notify())
 
 
