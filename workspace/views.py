@@ -671,18 +671,33 @@ def create_slow_channel(request, work_item_pk):
         participants_form = SlowChannelParticipantsForm(request.POST, work_item=work_item)
         
         if form.is_valid() and participants_form.is_valid():
-            channel = form.save()
+            try:
+                # Save the channel
+                channel = form.save()
+                
+                # Add selected participants
+                participants = participants_form.cleaned_data.get('participants', [])
+                for participant in participants:
+                    channel.participants.add(participant)
+                
+                # Always make sure creator is a participant
+                channel.participants.add(request.user)
+                
+                messages.success(request, f'Slow channel "{channel.title}" has been created!')
+                return redirect('slow_channel_detail', channel_pk=channel.pk)
+            except Exception as e:
+                # Log the error
+                logger.error(f"Error creating slow channel: {str(e)}")
+                messages.error(request, f"Error creating slow channel: {str(e)}")
+        else:
+            # Add form errors as messages for visibility
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
             
-            # Add selected participants
-            participants = participants_form.cleaned_data['participants']
-            for participant in participants:
-                channel.participants.add(participant)
-            
-            # Always make sure creator is a participant
-            channel.participants.add(request.user)
-            
-            messages.success(request, f'Slow channel "{channel.title}" has been created!')
-            return redirect('slow_channel_detail', channel_pk=channel.pk)
+            for field, errors in participants_form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
     else:
         form = SlowChannelForm(work_item=work_item, user=request.user)
         participants_form = SlowChannelParticipantsForm(work_item=work_item)
