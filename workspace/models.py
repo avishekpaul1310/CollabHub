@@ -393,7 +393,7 @@ class SlowChannel(models.Model):
     message_frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='daily')
     delivery_time = models.TimeField(default='09:00:00')
     custom_days = models.CharField(
-        max_length=20, 
+        max_length=100, 
         default='12345',  # Monday-Friday
         help_text="Days to deliver (1=Mon, 7=Sun)"
     )
