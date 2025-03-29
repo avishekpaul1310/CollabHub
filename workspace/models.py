@@ -33,6 +33,7 @@ class Message(models.Model):
     # Threading support
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
     is_thread_starter = models.BooleanField(default=False)
+    is_scheduled = models.BooleanField(default=False)  # New field to track scheduled messages
     
     class Meta:
         ordering = ['created_at']
@@ -265,3 +266,69 @@ class ThreadMessage(models.Model):
     def reply_count(self):
         """Get the count of replies to this message"""
         return self.replies.count()
+    
+# Add this to workspace/models.py
+
+class ScheduledMessage(models.Model):
+    """Model for messages that are scheduled to be sent at a future time"""
+    # The user who scheduled this message
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='scheduled_messages')
+    
+    # Where the message will be sent
+    work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='scheduled_messages')
+    thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name='scheduled_messages', 
+                              null=True, blank=True)
+    parent_message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='scheduled_replies',
+                                     null=True, blank=True)
+    
+    # Message content
+    content = models.TextField()
+    
+    # When the message is scheduled to be sent
+    scheduled_time = models.DateTimeField()
+    
+    # Status tracking
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_sent = models.BooleanField(default=False)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    
+    # Optional note about why this time was chosen
+    scheduling_note = models.CharField(max_length=255, blank=True, 
+                                     help_text="Optional note about why you chose this time")
+    
+    class Meta:
+        ordering = ['scheduled_time']
+    
+    def __str__(self):
+        sent_status = "Sent" if self.is_sent else "Scheduled"
+        return f"{sent_status} message by {self.sender.username} for {self.scheduled_time}"
+    
+    def send(self):
+        """Send this scheduled message by creating an actual Message"""
+        if self.is_sent:
+            return False
+            
+        try:
+            # Create the actual message
+            message = Message.objects.create(
+                work_item=self.work_item,
+                thread=self.thread,
+                user=self.sender,
+                content=self.content,
+                parent=self.parent_message,
+                is_thread_starter=False,
+                is_scheduled=True  # Add this field to Message model
+            )
+            
+            # Mark as sent
+            self.is_sent = True
+            self.sent_at = timezone.now()
+            self.save()
+            
+            return message
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error sending scheduled message {self.id}: {str(e)}")
+            return False
+
