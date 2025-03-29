@@ -335,6 +335,9 @@
         }
     </script>
     {% block extra_js %}{% endblock %}
+    {% if user.is_authenticated %}
+    <script src="{% static 'js/online-status.js' %}"></script>
+    {% endif %}
     </body>
     
     </html>
