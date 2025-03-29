@@ -1,4 +1,3 @@
-
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from workspace.models import ScheduledMessage
@@ -42,7 +41,7 @@ class Command(BaseCommand):
                 else:
                     fail_count += 1
                     self.stdout.write(self.style.ERROR(
-                        f'Failed to send scheduled message #{scheduled_msg.id} (already sent)'
+                        f'Failed to send scheduled message #{scheduled_msg.id} (already sent or other issue)'
                     ))
             except Exception as e:
                 fail_count += 1
