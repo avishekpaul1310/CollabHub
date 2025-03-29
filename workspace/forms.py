@@ -62,9 +62,11 @@ class FileAttachmentForm(forms.ModelForm):
 class NotificationPreferenceForm(forms.ModelForm):
     class Meta:
         model = NotificationPreference
-        fields = ['dnd_enabled', 'dnd_start_time', 'dnd_end_time', 
-                  'work_days', 'work_start_time', 'work_end_time',
-                  'notification_mode']
+        fields = [
+            'dnd_enabled', 'dnd_start_time', 'dnd_end_time', 
+            'work_days', 'work_start_time', 'work_end_time',
+            'notification_mode', 'show_online_status', 'share_read_receipts'
+        ]
         widgets = {
             'dnd_start_time': forms.TimeInput(attrs={'type': 'time'}),
             'dnd_end_time': forms.TimeInput(attrs={'type': 'time'}),
