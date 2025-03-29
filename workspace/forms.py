@@ -1,5 +1,5 @@
 from django import forms
-from .models import WorkItem, Message, FileAttachment, NotificationPreference, Thread
+from .models import WorkItem, Message, FileAttachment, NotificationPreference, Thread, ScheduledMessage
 from django.contrib.auth.models import User
 
 class WorkItemForm(forms.ModelForm):
@@ -133,5 +133,67 @@ class ThreadForm(forms.ModelForm):
             if not instance.is_public and self.user:
                 # This step is important - the creator might not be in allowed_users
                 instance.allowed_users.add(self.user)
+            
+        return instance
+
+class ScheduledMessageForm(forms.ModelForm):
+    scheduled_time = forms.DateTimeField(
+        widget=forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+        help_text="When this message should be sent"
+    )
+    
+    class Meta:
+        model = ScheduledMessage
+        fields = ['content', 'scheduled_time', 'scheduling_note']
+        widgets = {
+            'content': forms.Textarea(attrs={'rows': 3, 'placeholder': 'Your message content'}),
+            'scheduling_note': forms.TextInput(attrs={'placeholder': 'Optional: Why are you scheduling this message?'})
+        }
+    
+    def __init__(self, *args, **kwargs):
+        self.sender = kwargs.pop('sender', None)
+        self.work_item = kwargs.pop('work_item', None)
+        self.thread = kwargs.pop('thread', None)
+        self.parent_message = kwargs.pop('parent_message', None)
+        
+        super(ScheduledMessageForm, self).__init__(*args, **kwargs)
+        
+        # Set min date to current time
+        import datetime
+        now = datetime.datetime.now()
+        self.fields['scheduled_time'].widget.attrs['min'] = now.strftime('%Y-%m-%dT%H:%M')
+    
+    def clean_scheduled_time(self):
+        """Ensure scheduled time is in the future"""
+        scheduled_time = self.cleaned_data.get('scheduled_time')
+        from django.utils import timezone
+        now = timezone.now()
+        
+        if scheduled_time and scheduled_time <= now:
+            raise forms.ValidationError("Scheduled time must be in the future")
+        
+        return scheduled_time
+    
+    def save(self, commit=True):
+        instance = super(ScheduledMessageForm, self).save(commit=False)
+        
+        # Set the sender
+        if self.sender:
+            instance.sender = self.sender
+            
+        # Set the work item
+        if self.work_item:
+            instance.work_item = self.work_item
+        
+        # Set thread if provided
+        if self.thread:
+            instance.thread = self.thread
+            
+        # Set parent message if provided
+        if self.parent_message:
+            instance.parent_message = self.parent_message
+        
+        if commit:
+            instance.save()
             
         return instance
