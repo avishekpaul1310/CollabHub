@@ -97,6 +97,14 @@ class NotificationPreference(models.Model):
     work_days = models.CharField(max_length=20, default="12345", help_text="Days of week (1-7, where 1 is Monday)")
     work_start_time = models.TimeField(default="09:00")
     work_end_time = models.TimeField(default="17:00")
+    show_online_status = models.BooleanField(
+    default=False,
+    help_text="Show your online status to other users"
+    )
+    share_read_receipts = models.BooleanField(
+    default=True,
+    help_text="Share read receipts with message authors"
+    )
     
     # Channel preferences
     muted_channels = models.ManyToManyField(WorkItem, related_name='muted_by_users', blank=True)
