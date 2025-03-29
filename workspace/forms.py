@@ -1,6 +1,8 @@
 from django import forms
-from .models import WorkItem, Message, FileAttachment, NotificationPreference, Thread, ScheduledMessage
+from .models import WorkItem, Message, FileAttachment, NotificationPreference, Thread, ScheduledMessage, SlowChannel, SlowChannelMessage
 from django.contrib.auth.models import User
+import datetime
+from django.utils import timezone
 
 class WorkItemForm(forms.ModelForm):
     collaborators = forms.ModelMultipleChoiceField(
@@ -197,3 +199,205 @@ class ScheduledMessageForm(forms.ModelForm):
             instance.save()
             
         return instance
+
+class SlowChannelForm(forms.ModelForm):
+    delivery_time = forms.TimeField(
+        widget=forms.TimeInput(attrs={'type': 'time'}),
+        help_text="When messages will be delivered each day",
+        initial=datetime.time(9, 0)  # 9:00 AM default
+    )
+    
+    min_response_interval = forms.IntegerField(
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+        label="Minimum response interval (hours)",
+        help_text="Minimum time between responses to encourage thoughtfulness",
+        initial=4
+    )
+    
+    class Meta:
+        model = SlowChannel
+        fields = [
+            'title', 'description', 'type', 'message_frequency',
+            'delivery_time', 'custom_days', 'min_response_interval',
+            'reflection_prompts'
+        ]
+        widgets = {
+            'description': forms.Textarea(attrs={'rows': 3}),
+            'reflection_prompts': forms.Textarea(attrs={
+                'rows': 4, 
+                'placeholder': 'Enter one prompt per line. Example:\nWhat went well this week?\nWhat could be improved?'
+            }),
+            'custom_days': forms.CheckboxSelectMultiple(choices=[
+                ('1', 'Monday'), ('2', 'Tuesday'), ('3', 'Wednesday'),
+                ('4', 'Thursday'), ('5', 'Friday'), ('6', 'Saturday'), ('7', 'Sunday')
+            ])
+        }
+    
+    def __init__(self, *args, **kwargs):
+        self.work_item = kwargs.pop('work_item', None)
+        self.user = kwargs.pop('user', None)
+        super(SlowChannelForm, self).__init__(*args, **kwargs)
+        
+        # Convert min_response_interval from duration to hours
+        instance = kwargs.get('instance')
+        if instance and instance.min_response_interval:
+            self.initial['min_response_interval'] = instance.min_response_interval.total_seconds() / 3600
+    
+    def clean_min_response_interval(self):
+        """Convert hours to timedelta"""
+        hours = self.cleaned_data.get('min_response_interval')
+        if isinstance(hours, (int, float)):
+            return datetime.timedelta(hours=hours)
+        return hours
+    
+    def clean_custom_days(self):
+        """Ensure at least one day is selected for custom frequency"""
+        custom_days = self.cleaned_data.get('custom_days')
+        frequency = self.cleaned_data.get('message_frequency')
+        
+        if frequency in ['custom', 'weekly', 'biweekly'] and not custom_days:
+            raise forms.ValidationError("You must select at least one day for delivery")
+        
+        return custom_days
+    
+    def save(self, commit=True):
+        instance = super(SlowChannelForm, self).save(commit=False)
+        
+        # Set the work item if this is a new channel
+        if self.work_item and not instance.pk:
+            instance.work_item = self.work_item
+            
+        # Set the creator if this is a new channel
+        if self.user and not instance.pk:
+            instance.created_by = self.user
+            
+        if commit:
+            instance.save()
+            
+            # Add creator as participant for new channels
+            if self.user and not instance.pk:
+                instance.participants.add(self.user)
+                
+            # For existing channels, make sure creator is still a participant
+            else:
+                instance.participants.add(instance.created_by)
+            
+        return instance
+
+
+class SlowChannelMessageForm(forms.ModelForm):
+    class Meta:
+        model = SlowChannelMessage
+        fields = ['content', 'prompt']
+        widgets = {
+            'content': forms.Textarea(attrs={
+                'rows': 4,
+                'placeholder': 'Take your time to compose a thoughtful message...'
+            }),
+            'prompt': forms.HiddenInput()
+        }
+    
+    def __init__(self, *args, **kwargs):
+        self.channel = kwargs.pop('channel', None)
+        self.user = kwargs.pop('user', None)
+        self.parent = kwargs.pop('parent', None)
+        super(SlowChannelMessageForm, self).__init__(*args, **kwargs)
+        
+        # If there are prompts in the channel, add a dropdown field
+        if self.channel and self.channel.get_prompts_list():
+            prompts = self.channel.get_prompts_list()
+            prompt_choices = [('', '-- Select a prompt (optional) --')] + [(p, p) for p in prompts]
+            
+            self.fields['prompt'] = forms.ChoiceField(
+                choices=prompt_choices,
+                required=False,
+                widget=forms.Select(attrs={'class': 'form-select'})
+            )
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        # Check if user can post (min response interval)
+        if self.channel and self.user:
+            # Get user's last message in this channel
+            last_message = SlowChannelMessage.objects.filter(
+                channel=self.channel,
+                user=self.user
+            ).order_by('-created_at').first()
+            
+            if last_message:
+                # Calculate time since last message
+                time_since_last = timezone.now() - last_message.created_at
+                min_interval = self.channel.min_response_interval
+                
+                if time_since_last < min_interval and not self.parent:
+                    # Only enforce for top-level messages, not replies
+                    hours = min_interval.total_seconds() / 3600
+                    time_left = min_interval - time_since_last
+                    minutes_left = round(time_left.total_seconds() / 60)
+                    
+                    if minutes_left > 60:
+                        time_msg = f"{round(minutes_left/60, 1)} hours"
+                    else:
+                        time_msg = f"{minutes_left} minutes"
+                        
+                    raise forms.ValidationError(
+                        f"Please wait {time_msg} before posting again. "
+                        f"This channel has a minimum interval of {hours} hours between messages "
+                        f"to encourage thoughtful communication."
+                    )
+        
+        return cleaned_data
+    
+    def save(self, commit=True):
+        instance = super(SlowChannelMessageForm, self).save(commit=False)
+        
+        # Set the channel
+        if self.channel:
+            instance.channel = self.channel
+            
+        # Set the user
+        if self.user:
+            instance.user = self.user
+            
+        # Set parent for replies
+        if self.parent:
+            instance.parent = self.parent
+        
+        # Calculate scheduled delivery time
+        if self.channel:
+            instance.scheduled_delivery = self.channel.get_next_delivery_time()
+        
+        if commit:
+            instance.save()
+            
+        return instance
+
+
+class SlowChannelParticipantsForm(forms.Form):
+    participants = forms.ModelMultipleChoiceField(
+        queryset=User.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Select users who should participate in this slow channel"
+    )
+    
+    def __init__(self, *args, **kwargs):
+        self.work_item = kwargs.pop('work_item', None)
+        self.channel = kwargs.pop('channel', None)
+        super(SlowChannelParticipantsForm, self).__init__(*args, **kwargs)
+        
+        if self.work_item:
+            # Get all collaborators plus the owner
+            collaborators = list(self.work_item.collaborators.all())
+            
+            # Add the owner if they're not already in the list
+            if self.work_item.owner not in collaborators:
+                collaborators.append(self.work_item.owner)
+                
+            # Set the queryset
+            self.fields['participants'].queryset = User.objects.filter(id__in=[user.id for user in collaborators])
+            
+            # Set initial value if channel exists
+            if self.channel:
+                self.fields['participants'].initial = self.channel.participants.all()
