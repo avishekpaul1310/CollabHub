@@ -45,4 +45,9 @@ urlpatterns = [
     path('slow-channel/<int:channel_pk>/join/', views.join_slow_channel, name='join_slow_channel'),
     path('slow-channel/<int:channel_pk>/leave/', views.leave_slow_channel, name='leave_slow_channel'),
     path('my-slow-channels/', views.my_slow_channels, name='my_slow_channels'),
+
+    # Online Status URLs
+    path('api/user/preferences/online-status/', views.get_online_status_preference, name='get_online_status_preference'),
+    path('api/user/online-status/', views.update_online_status, name='update_online_status'),
+    path('api/user/<int:user_id>/online-status/', views.get_user_online_status, name='get_user_online_status'),
 ]
