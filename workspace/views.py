@@ -2,12 +2,16 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
-from .models import WorkItem, Message, Notification, NotificationPreference, ScheduledMessage
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+from .models import WorkItem, Message, Notification, NotificationPreference, ScheduledMessage, MessageReadReceipt
 from .forms import WorkItemForm, MessageForm, ThreadForm
 from django.db.models import Q
+from django.db import IntegrityError
 from .models import Thread, FileAttachment
 from .forms import FileAttachmentForm, NotificationPreferenceForm, ScheduledMessageForm
 import logging
+
 logger = logging.getLogger(__name__)
 
 @login_required
@@ -488,3 +492,138 @@ def edit_scheduled_message(request, pk):
         'title': 'Edit Scheduled Message'
     }
     return render(request, 'workspace/schedule_message_form.html', context)
+
+@csrf_exempt
+@require_POST
+@login_required
+def mark_message_read(request, message_id):
+    """API endpoint to mark a message as read"""
+    try:
+        message = get_object_or_404(Message, pk=message_id)
+        thread = message.thread
+        work_item = message.work_item
+        
+        # Check if user has access to this message
+        if (thread and not thread.user_can_access(request.user)) or \
+           (not thread and work_item.owner != request.user and request.user not in work_item.collaborators.all()):
+            return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+        
+        # Skip if user is the message author
+        if message.user == request.user:
+            return JsonResponse({'status': 'success', 'message': 'Skipped own message'})
+        
+        # Create read receipt (ignore if already exists)
+        try:
+            receipt, created = MessageReadReceipt.objects.get_or_create(
+                message=message,
+                user=request.user
+            )
+            
+            if created:
+                return JsonResponse({'status': 'success', 'message': 'Marked as read'})
+            else:
+                return JsonResponse({'status': 'success', 'message': 'Already read'})
+                
+        except IntegrityError:
+            # Handle race condition
+            return JsonResponse({'status': 'success', 'message': 'Already read (concurrent)'})
+            
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@login_required
+def get_message_read_status(request, message_id):
+    """API endpoint to get read status of a message"""
+    try:
+        message = get_object_or_404(Message, pk=message_id)
+        thread = message.thread
+        work_item = message.work_item
+        
+        # Check if user has access to this message
+        if (thread and not thread.user_can_access(request.user)) or \
+           (not thread and work_item.owner != request.user and request.user not in work_item.collaborators.all()):
+            return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+        
+        # Only message author can see read receipts
+        if message.user != request.user:
+            return JsonResponse({'status': 'error', 'message': 'Only the author can see read receipts'}, status=403)
+        
+        # Get read receipts
+        receipts = message.read_receipts.all().select_related('user')
+        
+        # Get list of users who have access but haven't read
+        if thread:
+            participants = thread.get_participants()
+        else:
+            participants = list(work_item.collaborators.all())
+            participants.append(work_item.owner)
+        
+        # Remove message author and users who have read
+        readers = [receipt.user for receipt in receipts]
+        participants = [p for p in participants if p != message.user and p not in readers]
+        
+        # Format response
+        response = {
+            'status': 'success',
+            'read_by': [
+                {
+                    'username': receipt.user.username,
+                    'read_at': receipt.read_at.isoformat(),
+                    'user_id': receipt.user.id
+                }
+                for receipt in receipts
+            ],
+            'pending': [
+                {
+                    'username': user.username,
+                    'user_id': user.id
+                }
+                for user in participants
+            ],
+            'total_read': len(receipts),
+            'total_pending': len(participants)
+        }
+        
+        return JsonResponse(response)
+        
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+# Optional: Bulk marker for thread read status
+@csrf_exempt
+@require_POST
+@login_required
+def mark_thread_read(request, thread_id):
+    """Mark all messages in a thread as read"""
+    try:
+        thread = get_object_or_404(Thread, pk=thread_id)
+        
+        # Check if user has access to this thread
+        if not thread.user_can_access(request.user):
+            return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+        
+        # Get all messages in thread not authored by current user
+        messages = Message.objects.filter(thread=thread).exclude(user=request.user)
+        
+        # Mark all as read
+        read_count = 0
+        for message in messages:
+            try:
+                receipt, created = MessageReadReceipt.objects.get_or_create(
+                    message=message,
+                    user=request.user
+                )
+                if created:
+                    read_count += 1
+            except IntegrityError:
+                # Skip if already exists
+                pass
+        
+        return JsonResponse({
+            'status': 'success', 
+            'message': f'Marked {read_count} messages as read',
+            'read_count': read_count
+        })
+        
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
