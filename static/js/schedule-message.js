@@ -1,5 +1,4 @@
-// Add to static/js/schedule-message.js
-
+// Schedule message functionality
 document.addEventListener('DOMContentLoaded', function() {
     // Set up schedule message button
     const scheduleMessageBtn = document.querySelector('.schedule-message-btn');
@@ -22,11 +21,17 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Format for datetime-local input
         const formattedDate = tomorrow.toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
-        document.getElementById('schedule-time').value = formattedDate;
+        const scheduleTime = document.getElementById('schedule-time');
+        if (scheduleTime) {
+            scheduleTime.value = formattedDate;
+        }
         
         // Open the modal
-        const modal = new bootstrap.Modal(document.getElementById('scheduleMessageModal'));
-        modal.show();
+        const modal = document.getElementById('scheduleMessageModal');
+        if (modal) {
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+        }
     });
     
     // Handle form submission
