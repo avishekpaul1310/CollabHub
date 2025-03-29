@@ -15,54 +15,54 @@
     </div>
 </div>
 
-{% if work_item %}
+{% if work_items %}
 <div class="row">
-    {% for work_item in work_item %}
+    {% for item in work_items %}
     <div class="col-md-4">
         <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
-                {% if work_item.type == 'task' %}
+                {% if item.type == 'task' %}
                 <span class="badge bg-info">Task</span>
-                {% elif work_item.type == 'doc' %}
+                {% elif item.type == 'doc' %}
                 <span class="badge bg-purple">Document</span>
                 {% else %}
                 <span class="badge bg-warning text-dark">Project</span>
                 {% endif %}
-                <span class="text-muted small">{{ work_item.created_at|date:"M d, Y" }}</span>
+                <span class="text-muted small">{{ item.created_at|date:"M d, Y" }}</span>
             </div>
             <div class="card-body">
-                <h5 class="card-title">{{ work_item.title }}</h5>
+                <h5 class="card-title">{{ item.title }}</h5>
                 <p class="card-text text-muted">
-                    {% if work_item.description|length > 100 %}
-                        {{ work_item.description|slice:":100" }}...
+                    {% if item.description|length > 100 %}
+                        {{ item.description|slice:":100" }}...
                     {% else %}
-                        {{ work_item.description }}
+                        {{ item.description }}
                     {% endif %}
                 </p>
                 
                 <div class="mt-3">
                     <small class="text-muted">
-                        <i class="fas fa-user"></i> Owner: {{ work_item.owner.username }}
+                        <i class="fas fa-user"></i> Owner: {{ item.owner.username }}
                     </small>
                 </div>
                 
-                {% if work_item.messages.exists %}
+                {% if item.messages.exists %}
                 <div class="mt-2">
                     <small class="text-muted">
-                        <i class="fas fa-comments"></i> {{ work_item.messages.count }} messages
+                        <i class="fas fa-comments"></i> {{ item.messages.count }} messages
                     </small>
                 </div>
                 {% endif %}
             </div>
             <div class="card-footer bg-transparent">
-                <a href="{% url 'work_item_detail' work_item.pk %}" class="btn btn-sm btn-primary">
+                <a href="{% url 'work_item_detail' item.pk %}" class="btn btn-sm btn-primary">
                     <i class="fas fa-eye"></i> View Details
                 </a>
-                {% if request.user == work_item.owner %}
-                <a href="{% url 'update_work_item' work_item.pk %}" class="btn btn-sm btn-outline-secondary">
+                {% if request.user == item.owner %}
+                <a href="{% url 'update_work_item' item.pk %}" class="btn btn-sm btn-outline-secondary">
                     <i class="fas fa-edit"></i> Edit
                 </a>
-                <a href="{% url 'delete_work_item' work_item.pk %}" class="btn btn-sm btn-outline-danger">
+                <a href="{% url 'delete_work_item' item.pk %}" class="btn btn-sm btn-outline-danger">
                     <i class="fas fa-trash"></i> Delete
                 </a>
                 {% endif %}
