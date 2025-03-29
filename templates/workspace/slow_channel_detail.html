@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ channel.title }} | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Breadcrumb navigation -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'work_item_detail' work_item.pk %}">{{ work_item.title }}</a></li>
+            <li class="breadcrumb-item active">{{ channel.title }}</li>
+        </ol>
+    </nav>
+
+    <!-- Channel Header Card -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h4 class="mb-0">{{ channel.title }}</h4>
+                <small class="text-muted">
+                    {{ channel.get_type_display }} in {{ work_item.title }} • 
+                    Created by {{ channel.created_by.username }} • 
+                    {{ channel.created_at|date:"M d, Y" }}
+                </small>
+            </div>
+            <div>
+                {% if request.user == channel.created_by or request.user == work_item.owner %}
+                <a href="{% url 'update_slow_channel' channel.pk %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-edit"></i> Edit Channel
+                </a>
+                {% endif %}
+                <a href="{% url 'work_item_detail' work_item.pk %}" class="btn btn-secondary btn-sm ms-2">
+                    <i class="fas fa-arrow-left"></i> Back to Work Item
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="mb-4">
+                <h5 class="text-muted">About This Channel</h5>
+                <p>{{ channel.description }}</p>
+                
+                <div class="row mt-4">
+                    <div class="col-md-4">
+                        <h6 class="text-muted">Message Frequency</h6>
+                        <p><span class="badge bg-info">{{ channel.get_message_frequency_display }}</span></p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-muted">Delivery Time</h6>
+                        <p>{{ channel.delivery_time|time:"g:i A" }}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-muted">Response Interval</h6>
+                        <p>{{ channel.min_response_interval.total_seconds|floatformat:"0"|divisibleby:"3600" }} hours</p>
+                    </div>
+                </div>
+            </div>
+            
+            {% if not can_post %}
+            <div class="alert alert-info">
+                <i class="fas fa-hourglass-half me-2"></i>
+                This channel encourages thoughtful communication. You need to wait {{ time_until_next_post }} before posting another message to foster deeper reflection.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Message Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Create New Message</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                {% csrf_token %}
+                
+                {% if form.prompt.field.choices|length > 1 %}
+                <div class="mb-3">
+                    <label for="{{ form.prompt.id_for_label }}" class="form-label">Choose a Reflection Prompt (Optional)</label>
+                    {{ form.prompt.errors }}
+                    <select name="{{ form.prompt.name }}" id="{{ form.prompt.id_for_label }}" class="form-select">
+                        {% for value, text in form.prompt.field.choices %}
+                        <option value="{{ value }}" {% if form.prompt.value == value %}selected{% endif %}>
+                            {{ text }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Selecting a prompt can help guide your reflection</div>
+                </div>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <label for="{{ form.content.id_for_label }}" class="form-label">Your Message</label>
+                    {{ form.content.errors }}
+                    <textarea name="{{ form.content.name }}" id="{{ form.content.id_for_label }}" 
+                             class="form-control {% if form.content.errors %}is-invalid{% endif %}"
+                             rows="4" {% if not can_post %}disabled{% endif %}>{{ form.content.value|default:'' }}</textarea>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="form-text">
+                        <i class="fas fa-info-circle"></i> 
+                        Your message will be delivered at {{ channel.delivery_time|time:"g:i A" }}{% if channel.message_frequency != 'daily' %} on the next scheduled day{% endif %}.
+                    </div>
+                    <button type="submit" class="btn btn-primary" {% if not can_post %}disabled{% endif %}>
+                        <i class="fas fa-paper-plane"></i> Schedule Message
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Messages -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Messages</h5>
+            <span class="badge bg-secondary">{{ messages|length }} message{{ messages|length|pluralize }}</span>
+        </div>
+        <div class="card-body">
+            {% if messages %}
+                <div class="timeline">
+                    {% for message in messages %}
+                        <div class="message-container mb-4" id="message-{{ message.id }}">
+                            <div class="message-header d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                    <strong>{{ message.user.username }}</strong>
+                                    {% if message.user == channel.created_by %}
+                                        <span class="badge bg-info ms-1">Creator</span>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted">{{ message.created_at|date:"M d, Y" }} at {{ message.created_at|time:"g:i A" }}</small>
+                            </div>
+                            
+                            {% if message.prompt %}
+                            <div class="message-prompt alert alert-light mb-2">
+                                <i class="fas fa-quote-left text-muted me-2"></i>
+                                <em>{{ message.prompt }}</em>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="message-content p-3 bg-light rounded">
+                                {{ message.content|linebreaks }}
+                            </div>
+                            
+                            <div class="message-actions mt-2">
+                                <button class="btn btn-sm btn-outline-secondary reply-btn" data-message-id="{{ message.id }}">
+                                    <i class="fas fa-reply"></i> Reply
+                                </button>
+                                
+                                {% if message.replies.count > 0 %}
+                                <button class="btn btn-sm btn-link toggle-replies" data-message-id="{{ message.id }}">
+                                    <i class="fas fa-comments"></i> {{ message.replies.count }} reply{{ message.replies.count|pluralize }}
+                                </button>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Replies container (initially hidden) -->
+                            {% if message.replies.count > 0 %}
+                            <div class="replies-container ps-4 mt-2" id="replies-{{ message.id }}" style="display: none;">
+                                {% for reply in message.replies_list %}
+                                <div class="reply p-2 mb-2 bg-light border-start border-primary border-2 rounded">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <strong>{{ reply.user.username }}</strong>
+                                        <small class="text-muted">{{ reply.created_at|date:"M d, Y g:i A" }}</small>
+                                    </div>
+                                    <div class="reply-content">{{ reply.content }}</div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Reply form (initially hidden) -->
+                            <div class="reply-form mt-2 ps-4" id="reply-form-{{ message.id }}" style="display: none;">
+                                <form class="slow-channel-reply-form" method="POST">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="parent_id" value="{{ message.id }}">
+                                    <div class="input-group">
+                                        <textarea class="form-control reply-input" name="content" rows="2" placeholder="Write a reply..."></textarea>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-paper-plane"></i>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">No messages in this channel yet. Be the first to post!</p>
+                    <p>Remember, slow channels encourage thoughtful communication. Take your time to compose a meaningful message.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle showing/hiding reply forms
+        const replyButtons = document.querySelectorAll('.reply-btn');
+        replyButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const messageId = this.getAttribute('data-message-id');
+                const replyForm = document.getElementById(`reply-form-${messageId}`);
+                
+                // Hide all other reply forms
+                document.querySelectorAll('.reply-form').forEach(form => {
+                    if (form.id !== `reply-form-${messageId}`) {
+                        form.style.display = 'none';
+                    }
+                });
+                
+                // Toggle this reply form
+                replyForm.style.display = replyForm.style.display === 'none' ? 'block' : 'none';
+                
+                // Focus on textarea if showing
+                if (replyForm.style.display === 'block') {
+                    replyForm.querySelector('textarea').focus();
+                }
+            });
+        });
+        
+        // Handle showing/hiding replies
+        const toggleButtons = document.querySelectorAll('.toggle-replies');
+        toggleButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const messageId = this.getAttribute('data-message-id');
+                const repliesContainer = document.getElementById(`replies-${messageId}`);
+                const isHidden = repliesContainer.style.display === 'none';
+                
+                // Toggle display
+                repliesContainer.style.display = isHidden ? 'block' : 'none';
+                
+                // Update button text
+                const replyCount = repliesContainer.querySelectorAll('.reply').length;
+                this.innerHTML = isHidden 
+                    ? `<i class="fas fa-comments"></i> Hide replies`
+                    : `<i class="fas fa-comments"></i> ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`;
+            });
+        });
+    });
+</script>
+{% endblock %}
