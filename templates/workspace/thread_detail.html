@@ -117,8 +117,21 @@
                                     {% if message.user == work_item.owner %}
                                         <span class="badge bg-secondary ms-1">Owner</span>
                                     {% endif %}
+                                    {% if message.is_scheduled %}
+                                        <span class="badge bg-warning text-dark ms-1">Scheduled</span>
+                                    {% endif %}
                                 </div>
-                                <small class="text-muted">{{ message.created_at|date:"Y-m-d H:i" }}</small>
+                                <div class="d-flex align-items-center">
+                                    {% if message.user == request.user %}
+                                    <button class="btn btn-sm btn-link text-muted read-receipt-icon p-0 me-2" 
+                                            data-message-id="{{ message.id }}" 
+                                            data-bs-toggle="tooltip" 
+                                            title="See who has read this message">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    {% endif %}
+                                    <small class="text-muted">{{ message.created_at|date:"Y-m-d H:i" }}</small>
+                                </div>
                             </div>
                             <div class="message-content mb-2">{{ message.content }}</div>
                             <div class="message-actions d-flex align-items-center">
@@ -142,7 +155,17 @@
                                     <div>
                                         <strong>{{ reply.user.username }}</strong>
                                     </div>
-                                    <small class="text-muted">{{ reply.created_at|date:"Y-m-d H:i" }}</small>
+                                    <div class="d-flex align-items-center">
+                                        {% if reply.user == request.user %}
+                                        <button class="btn btn-sm btn-link text-muted read-receipt-icon p-0 me-2" 
+                                                data-message-id="{{ reply.id }}" 
+                                                data-bs-toggle="tooltip" 
+                                                title="See who has read this message">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        {% endif %}
+                                        <small class="text-muted">{{ reply.created_at|date:"Y-m-d H:i" }}</small>
+                                    </div>
                                 </div>
                                 <div class="reply-content">{{ reply.content }}</div>
                                 <div class="reply-actions mt-1">
@@ -547,5 +570,30 @@
         const messagesList = document.getElementById('messages-list');
         messagesList.scrollTop = messagesList.scrollHeight;
     });
+
 </script>
+<style>
+    .read-receipt-popover {
+        max-width: 300px;
+    }
+    
+    .read-receipt-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+    }
+    
+    .read-receipt-icon {
+        opacity: 0.6;
+        transition: opacity 0.2s;
+    }
+    
+    .read-receipt-icon:hover {
+        opacity: 1;
+    }
+</style>
+{% block extra_js %}
+{{ block.super }}
+<script src="{% static 'js/read-receipts.js' %}"></script>
 {% endblock %}
