@@ -1,8 +1,14 @@
-
 document.addEventListener('DOMContentLoaded', function() {
     // Only run on thread detail pages
     const messagesContainer = document.getElementById('messages-list');
     if (!messagesContainer) return;
+    
+    // Get user ID from meta tag
+    const userId = document.querySelector('meta[name="user-id"]')?.getAttribute('content');
+    if (!userId) {
+        console.error('User ID meta tag not found');
+        return;
+    }
     
     // Set up intersection observer to detect when messages are visible
     setupMessageReadTracking();
@@ -13,6 +19,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function setupMessageReadTracking() {
     // Only track messages if the user is logged in
+    const userId = document.querySelector('meta[name="user-id"]')?.getAttribute('content');
     if (!userId) return;
     
     // Track which messages we've already marked as read
@@ -39,18 +46,10 @@ function setupMessageReadTracking() {
     });
     
     // Observe all message elements
-    document.querySelectorAll('.message-container').forEach(message => {
+    document.querySelectorAll('[data-message-id]').forEach(message => {
         const messageId = message.getAttribute('data-message-id');
         if (messageId) {
             observer.observe(message);
-        }
-    });
-    
-    // Also include replies
-    document.querySelectorAll('.reply').forEach(reply => {
-        const messageId = reply.getAttribute('data-message-id');
-        if (messageId) {
-            observer.observe(reply);
         }
     });
 }
@@ -66,7 +65,12 @@ function markMessageRead(messageId) {
             'X-CSRFToken': getCsrfToken()
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         console.log(`Message ${messageId} marked as read:`, data);
     })
@@ -81,6 +85,8 @@ function setupReadReceiptPopups() {
     
     readReceiptIcons.forEach(icon => {
         const messageId = icon.getAttribute('data-message-id');
+        if (!messageId) return;
+        
         const popoverId = `read-receipt-popover-${messageId}`;
         
         // Create popover element if not exists
@@ -113,18 +119,22 @@ function setupReadReceiptPopups() {
         }
         
         // Initialize Bootstrap popover
-        const bsPopover = new bootstrap.Popover(icon, {
-            container: 'body',
-            trigger: 'click',
-            html: true,
-            content: popover,
-            placement: 'left'
-        });
-        
-        // Load read status when popover is shown
-        icon.addEventListener('shown.bs.popover', function() {
-            loadReadStatus(messageId, popover);
-        });
+        try {
+            const bsPopover = new bootstrap.Popover(icon, {
+                container: 'body',
+                trigger: 'click',
+                html: true,
+                content: popover,
+                placement: 'left'
+            });
+            
+            // Load read status when popover is shown
+            icon.addEventListener('shown.bs.popover', function() {
+                loadReadStatus(messageId, popover);
+            });
+        } catch (error) {
+            console.error('Error initializing popover:', error);
+        }
     });
 }
 
@@ -134,12 +144,22 @@ function loadReadStatus(messageId, popoverElement) {
     const readByList = popoverElement.querySelector('.read-by-list');
     const pendingList = popoverElement.querySelector('.read-pending-list');
     
+    if (!loadingElement || !contentElement || !readByList || !pendingList) {
+        console.error('Missing required elements in popover');
+        return;
+    }
+    
     // Show loading, hide content
     loadingElement.style.display = 'flex';
     contentElement.style.display = 'none';
     
     fetch(`/api/message/${messageId}/read-status/`)
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         // Hide loading, show content
         loadingElement.style.display = 'none';
@@ -203,13 +223,30 @@ function loadReadStatus(messageId, popoverElement) {
     })
     .catch(error => {
         console.error(`Error loading read status for message ${messageId}:`, error);
-        contentElement.innerHTML = '<div class="text-danger">Error loading read status.</div>';
-        contentElement.style.display = 'block';
-        loadingElement.style.display = 'none';
+        if (contentElement) {
+            contentElement.innerHTML = '<div class="text-danger">Error loading read status.</div>';
+            contentElement.style.display = 'block';
+        }
+        if (loadingElement) {
+            loadingElement.style.display = 'none';
+        }
     });
 }
 
 // Helper function to get CSRF token
 function getCsrfToken() {
-    return document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
+    // Try to get from meta tag first (recommended approach)
+    const metaToken = document.querySelector('meta[name="csrf-token"]');
+    if (metaToken) {
+        return metaToken.getAttribute('content');
+    }
+    
+    // Fallback to form input
+    const csrfInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    if (csrfInput) {
+        return csrfInput.value;
+    }
+    
+    console.error('CSRF token not found');
+    return '';
 }
