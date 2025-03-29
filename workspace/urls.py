@@ -36,4 +36,13 @@ urlpatterns = [
     path('api/message/<int:message_id>/mark-read/', views.mark_message_read, name='mark_message_read'),
     path('api/message/<int:message_id>/read-status/', views.get_message_read_status, name='get_message_read_status'),
     path('api/thread/<int:thread_id>/mark-read/', views.mark_thread_read, name='mark_thread_read'),
+
+    # Slow Channel URLs
+    path('work-item/<int:work_item_pk>/slow-channel/new/', views.create_slow_channel, name='create_slow_channel'),
+    path('slow-channel/<int:channel_pk>/', views.slow_channel_detail, name='slow_channel_detail'),
+    path('slow-channel/<int:channel_pk>/update/', views.update_slow_channel, name='update_slow_channel'),
+    path('slow-channel/<int:channel_pk>/delete/', views.delete_slow_channel, name='delete_slow_channel'),
+    path('slow-channel/<int:channel_pk>/join/', views.join_slow_channel, name='join_slow_channel'),
+    path('slow-channel/<int:channel_pk>/leave/', views.leave_slow_channel, name='leave_slow_channel'),
+    path('my-slow-channels/', views.my_slow_channels, name='my_slow_channels'),
 ]
