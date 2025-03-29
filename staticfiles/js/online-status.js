@@ -1,64 +1,75 @@
-// Add this to static/js/online-status.js
-
 // Online status tracking
 let onlineStatusEnabled = false;
+let statusUpdateInterval = null;
+const ACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Check if user has enabled online status
+    // Only run if user is authenticated
+    if (!document.querySelector('meta[name="user-authenticated"]')) return;
+    
+    // Check user preferences first before enabling tracking
+    checkOnlineStatusPreference();
+});
+
+function checkOnlineStatusPreference() {
     fetch('/api/user/preferences/online-status/')
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             onlineStatusEnabled = data.show_online_status;
             
             if (onlineStatusEnabled) {
-                // Initialize online status tracking
                 setupOnlineTracking();
+                console.log('Online status tracking enabled');
             } else {
-                // Hide any online status indicators
-                document.querySelectorAll('.online-status-indicator').forEach(indicator => {
-                    indicator.style.display = 'none';
-                });
+                console.log('Online status tracking disabled by user preference');
             }
         })
         .catch(error => {
-            console.error('Error checking online status preferences:', error);
+            console.error('Error checking online status preference:', error);
         });
-});
+}
 
 function setupOnlineTracking() {
-    // Only run if user is authenticated
-    if (!document.querySelector('meta[name="user-authenticated"]')) return;
-    
     // Set up activity tracking
     let lastActivity = new Date();
+    let currentStatus = 'active';
     let activityTimeout;
     
     // Update last activity timestamp on user actions
     const updateActivity = () => {
         lastActivity = new Date();
         
+        // If status was away, set back to active
+        if (currentStatus !== 'active') {
+            currentStatus = 'active';
+            updateStatusOnServer('active');
+        }
+        
         // Clear any existing timeout
         if (activityTimeout) {
             clearTimeout(activityTimeout);
         }
         
-        // Set status to active
-        updateOnlineStatus('active');
-        
-        // Set timeout to check inactivity after 5 minutes
+        // Set timeout to check inactivity after defined timeout period
         activityTimeout = setTimeout(() => {
-            // If no activity for 5 minutes, set to away
-            const inactiveTime = (new Date() - lastActivity) / 1000 / 60; // in minutes
+            // If no activity for timeout period, set to away
+            const inactiveTime = (new Date() - lastActivity);
             
-            if (inactiveTime >= 5) {
-                updateOnlineStatus('away');
+            if (inactiveTime >= ACTIVITY_TIMEOUT) {
+                currentStatus = 'away';
+                updateStatusOnServer('away');
             }
-        }, 5 * 60 * 1000); // 5 minutes
+        }, ACTIVITY_TIMEOUT);
     };
     
     // Track user activity
-    ['mousemove', 'keypress', 'click', 'scroll'].forEach(event => {
-        document.addEventListener(event, updateActivity, { passive: true });
+    ['mousemove', 'keypress', 'click', 'scroll', 'touchstart'].forEach(event => {
+        document.addEventListener(event, _.debounce(updateActivity, 2000), { passive: true });
     });
     
     // Initialize as active
@@ -69,34 +80,64 @@ function setupOnlineTracking() {
         if (document.visibilityState === 'visible') {
             updateActivity();
         } else {
-            updateOnlineStatus('away');
+            currentStatus = 'away';
+            updateStatusOnServer('away');
         }
     });
     
     // Handle page unload
     window.addEventListener('beforeunload', () => {
-        updateOnlineStatus('offline');
+        // Use sendBeacon for more reliable delivery during page unload
+        if (navigator.sendBeacon) {
+            const data = JSON.stringify({ status: 'offline' });
+            navigator.sendBeacon('/api/user/online-status/', data);
+        } else {
+            // Fallback method
+            updateStatusOnServer('offline');
+        }
     });
+    
+    // Start periodic status update to keep session alive
+    startStatusUpdateInterval();
 }
 
-function updateOnlineStatus(status) {
+function updateStatusOnServer(status) {
     if (!onlineStatusEnabled) return;
     
-    // Send status update to server
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    
     fetch('/api/user/online-status/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': getCsrfToken()
+            'X-CSRFToken': csrfToken
         },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status: status })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Status updated:', data);
     })
     .catch(error => {
         console.error('Error updating online status:', error);
     });
 }
 
-// Helper function to get CSRF token
-function getCsrfToken() {
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+function startStatusUpdateInterval() {
+    // Clear any existing interval
+    if (statusUpdateInterval) {
+        clearInterval(statusUpdateInterval);
+    }
+    
+    // Update status every 5 minutes to keep it active
+    statusUpdateInterval = setInterval(() => {
+        if (document.visibilityState === 'visible' && onlineStatusEnabled) {
+            updateStatusOnServer('active');
+        }
+    }, 5 * 60 * 1000);
 }
