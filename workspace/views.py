@@ -12,6 +12,7 @@ from .models import Thread, FileAttachment, SlowChannel, SlowChannelMessage
 from .forms import FileAttachmentForm, NotificationPreferenceForm, ScheduledMessageForm, SlowChannelForm, SlowChannelParticipantsForm, SlowChannelMessageForm
 import logging
 from django.utils import timezone
+from django.contrib.auth.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -494,6 +495,7 @@ def edit_scheduled_message(request, pk):
     }
     return render(request, 'workspace/schedule_message_form.html', context)
 
+
 @csrf_exempt
 @require_POST
 @login_required
@@ -513,6 +515,16 @@ def mark_message_read(request, message_id):
         if message.user == request.user:
             return JsonResponse({'status': 'success', 'message': 'Skipped own message'})
         
+        # Check if user has disabled sharing read receipts
+        try:
+            user_preferences = request.user.notification_preferences
+            if not user_preferences.share_read_receipts:
+                # Still track internally that user has seen the message, but don't create visible receipt
+                return JsonResponse({'status': 'success', 'message': 'Read receipts disabled by user'})
+        except AttributeError:
+            # If no preferences exist, use default behavior (share receipts)
+            pass
+        
         # Create read receipt (ignore if already exists)
         try:
             receipt, created = MessageReadReceipt.objects.get_or_create(
@@ -531,6 +543,8 @@ def mark_message_read(request, message_id):
             
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+# Update the get_message_read_status view in workspace/views.py
 
 @login_required
 def get_message_read_status(request, message_id):
@@ -563,6 +577,13 @@ def get_message_read_status(request, message_id):
         readers = [receipt.user for receipt in receipts]
         participants = [p for p in participants if p != message.user and p not in readers]
         
+        # Filter out users who have disabled sharing read receipts
+        from django.db.models import Q
+        users_not_sharing = User.objects.filter(
+            Q(notification_preferences__share_read_receipts=False) | 
+            Q(notification_preferences__isnull=True)
+        ).values_list('id', flat=True)
+        
         # Format response
         response = {
             'status': 'success',
@@ -572,17 +593,18 @@ def get_message_read_status(request, message_id):
                     'read_at': receipt.read_at.isoformat(),
                     'user_id': receipt.user.id
                 }
-                for receipt in receipts
+                for receipt in receipts if receipt.user.id not in users_not_sharing
             ],
             'pending': [
                 {
                     'username': user.username,
                     'user_id': user.id
                 }
-                for user in participants
+                for user in participants if user.id not in users_not_sharing
             ],
             'total_read': len(receipts),
-            'total_pending': len(participants)
+            'total_pending': len(participants),
+            'note': 'Some users may have disabled sharing read receipts'
         }
         
         return JsonResponse(response)
