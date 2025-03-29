@@ -31,4 +31,9 @@ urlpatterns = [
     path('my-scheduled-messages/', views.my_scheduled_messages, name='my_scheduled_messages'),
     path('scheduled-message/<int:pk>/cancel/', views.cancel_scheduled_message, name='cancel_scheduled_message'),
     path('scheduled-message/<int:pk>/edit/', views.edit_scheduled_message, name='edit_scheduled_message'),
+
+    # Read Receipts URLs
+    path('api/message/<int:message_id>/mark-read/', views.mark_message_read, name='mark_message_read'),
+    path('api/message/<int:message_id>/read-status/', views.get_message_read_status, name='get_message_read_status'),
+    path('api/thread/<int:thread_id>/mark-read/', views.mark_thread_read, name='mark_thread_read'),
 ]
