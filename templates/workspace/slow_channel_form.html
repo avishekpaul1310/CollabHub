@@ -1,0 +1,617 @@
+<!-- templates/workspace/slow_channel_form.html -->
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">{{ title }}</h4>
+                {% if channel %}
+                <small class="text-muted">In {{ work_item.title }}</small>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-4">
+                    <div class="d-flex">
+                        <div class="me-3">
+                            <i class="fas fa-info-circle fa-2x"></i>
+                        </div>
+                        <div>
+                            <h5>About Slow Channels</h5>
+                            <p class="mb-0">Slow channels are designed for thoughtful, asynchronous communication. Messages are intentionally delayed, and there's a minimum time between posts to encourage deeper thinking and reduce the pressure of immediate responses.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="POST">
+                    {% csrf_token %}
+                    
+                    <h5 class="mb-3">Channel Details</h5>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.title.id_for_label }}" class="form-label">Channel Title</label>
+                        {{ form.title.errors }}
+                        <input type="text" name="{{ form.title.name }}" id="{{ form.title.id_for_label }}" 
+                               class="form-control {% if form.title.errors %}is-invalid{% endif %}"
+                               value="{{ form.title.value|default:'' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
+                        {{ form.description.errors }}
+                        <textarea name="{{ form.description.name }}" id="{{ form.description.id_for_label }}"
+                               class="form-control {% if form.description.errors %}is-invalid{% endif %}"
+                               rows="3">{{ form.description.value|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.type.id_for_label }}" class="form-label">Channel Type</label>
+                        {{ form.type.errors }}
+                        <select name="{{ form.type.name }}" id="{{ form.type.id_for_label }}"
+                               class="form-select {% if form.type.errors %}is-invalid{% endif %}">
+                            {% for value, text in form.type.field.choices %}
+                            <option value="{{ value }}" {% if form.type.value == value %}selected{% endif %}>
+                                {{ text }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h5 class="mb-3">Delivery Settings</h5>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.message_frequency.id_for_label }}" class="form-label">Message Delivery Frequency</label>
+                        {{ form.message_frequency.errors }}
+                        <select name="{{ form.message_frequency.name }}" id="{{ form.message_frequency.id_for_label }}"
+                               class="form-select {% if form.message_frequency.errors %}is-invalid{% endif %}">
+                            {% for value, text in form.message_frequency.field.choices %}
+                            <option value="{{ value }}" {% if form.message_frequency.value == value %}selected{% endif %}>
+                                {{ text }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">How often should messages be delivered to participants?</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.delivery_time.id_for_label }}" class="form-label">Delivery Time</label>
+                        {{ form.delivery_time.errors }}
+                        <input type="time" name="{{ form.delivery_time.name }}" id="{{ form.delivery_time.id_for_label }}"
+                               class="form-control {% if form.delivery_time.errors %}is-invalid{% endif %}"
+                               value="{{ form.delivery_time.value|time:'H:i'|default:'09:00' }}">
+                        <div class="form-text">{{ form.delivery_time.help_text }}</div>
+                    </div>
+                    
+                    <div class="mb-3" id="custom-days-section">
+                        <label class="form-label">Delivery Days</label>
+                        {{ form.custom_days.errors }}
+                        <div class="d-flex flex-wrap">
+                            {% for value, text in form.custom_days.field.widget.choices %}
+                            <div class="form-check me-3 mb-2">
+                                <input type="checkbox" name="{{ form.custom_days.name }}" id="id_custom_days_{{ forloop.counter0 }}" 
+                                       value="{{ value }}" class="form-check-input"
+                                       {% if value in form.custom_days.value %}checked{% endif %}>
+                                <label for="id_custom_days_{{ forloop.counter0 }}" class="form-check-label">{{ text }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="form-text">Select days when messages should be delivered</div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h5 class="mb-3">Thoughtful Communication Settings</h5>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.min_response_interval.id_for_label }}" class="form-label">
+                            {{ form.min_response_interval.label }}
+                        </label>
+                        {{ form.min_response_interval.errors }}
+                        <div class="input-group">
+                            <input type="number" name="{{ form.min_response_interval.name }}" id="{{ form.min_response_interval.id_for_label }}"
+                                   class="form-control {% if form.min_response_interval.errors %}is-invalid{% endif %}"
+                                   value="{{ form.min_response_interval.value|default:'4' }}"
+                                   min="1">
+                            <span class="input-group-text">hours</span>
+                        </div>
+                        <div class="form-text">{{ form.min_response_interval.help_text }}</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.reflection_prompts.id_for_label }}" class="form-label">Reflection Prompts (Optional)</label>
+                        {{ form.reflection_prompts.errors }}
+                        <textarea name="{{ form.reflection_prompts.name }}" id="{{ form.reflection_prompts.id_for_label }}"
+                               class="form-control {% if form.reflection_prompts.errors %}is-invalid{% endif %}"
+                               rows="4" placeholder="Enter one prompt per line. Example:&#10;What went well this week?&#10;What could be improved?">{{ form.reflection_prompts.value|default:'' }}</textarea>
+                        <div class="form-text">Optional prompts to guide the discussion. Each line will be a separate prompt.</div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h5 class="mb-3">Participants</h5>
+                    
+                    <div class="mb-3">
+                        {{ participants_form.participants.errors }}
+                        <div class="d-flex flex-wrap">
+                            {% for user_obj in participants_form.participants.field.queryset %}
+                            <div class="form-check me-4 mb-2">
+                                <input type="checkbox" name="{{ participants_form.participants.name }}" id="id_participants_{{ user_obj.id }}" 
+                                       value="{{ user_obj.id }}" class="form-check-input"
+                                       {% if user_obj in participants_form.participants.initial %}checked{% endif %}>
+                                <label for="id_participants_{{ user_obj.id }}" class="form-check-label">{{ user_obj.username }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="form-text">{{ participants_form.participants.help_text }}</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a href="{% if channel %}{% url 'slow_channel_detail' channel.pk %}{% else %}{% url 'work_item_detail' work_item.pk %}{% endif %}" 
+                           class="btn btn-outline-secondary me-md-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const frequencySelect = document.getElementById('{{ form.message_frequency.id_for_label }}');
+        const customDaysSection = document.getElementById('custom-days-section');
+        
+        function toggleCustomDays() {
+            const value = frequencySelect.value;
+            if (['custom', 'weekly', 'biweekly'].includes(value)) {
+                customDaysSection.style.display = 'block';
+            } else {
+                customDaysSection.style.display = 'none';
+            }
+        }
+        
+        // Initialize on page load
+        toggleCustomDays();
+        
+        // Update when frequency changes
+        frequencySelect.addEventListener('change', toggleCustomDays);
+    });
+</script>
+{% endblock %}
+
+<!-- templates/workspace/slow_channel_detail.html -->
+{% extends 'base.html' %}
+
+{% block title %}{{ channel.title }} | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Breadcrumb navigation -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'work_item_detail' work_item.pk %}">{{ work_item.title }}</a></li>
+            <li class="breadcrumb-item active">{{ channel.title }}</li>
+        </ol>
+    </nav>
+
+    <!-- Slow Channel Header Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-0">
+                        <i class="fas fa-clock text-primary me-2"></i>
+                        {{ channel.title }}
+                    </h4>
+                    <small class="text-muted">
+                        Slow Channel • Created by {{ channel.created_by.username }} • {{ channel.created_at|date:"M d, Y" }}
+                    </small>
+                </div>
+                <div>
+                    {% if request.user == channel.created_by or request.user == work_item.owner %}
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="channelActions" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-cog"></i> Actions
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="channelActions">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'update_slow_channel' channel.pk %}">
+                                    <i class="fas fa-edit"></i> Edit Channel
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{% url 'delete_slow_channel' channel.pk %}">
+                                    <i class="fas fa-trash"></i> Delete Channel
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    {% elif request.user in channel.participants.all %}
+                    <a href="{% url 'leave_slow_channel' channel.pk %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-sign-out-alt"></i> Leave Channel
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <p class="mb-3">{{ channel.description }}</p>
+                    
+                    <div class="mb-3">
+                        <h6 class="text-muted">Channel Type</h6>
+                        <p><span class="badge bg-secondary">{{ channel.get_type_display }}</span></p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6 class="text-muted">Message Delivery Schedule</h6>
+                        <p>
+                            {{ channel.get_message_frequency_display }} at {{ channel.delivery_time|time:"g:i A" }}
+                            {% if channel.message_frequency in 'custom,weekly,biweekly' %}
+                            <br>
+                            <small class="text-muted">
+                                On: 
+                                {% for day in channel.custom_days %}
+                                {% if day == '1' %}Monday{% elif day == '2' %}Tuesday{% elif day == '3' %}Wednesday{% elif day == '4' %}Thursday{% elif day == '5' %}Friday{% elif day == '6' %}Saturday{% elif day == '7' %}Sunday{% endif %}{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            </small>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100 bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title">Channel Info</h6>
+                            
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Minimum response interval:</small>
+                                <strong>{{ channel.min_response_interval.total_seconds|divisibleby:3600 }} hours</strong>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Participants:</small>
+                                <div class="d-flex flex-wrap mt-1">
+                                    {% for participant in channel.participants.all %}
+                                    <span class="badge bg-secondary me-1 mb-1">{{ participant.username }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Slow communication explanation -->
+    <div class="alert alert-info mb-4">
+        <div class="d-flex">
+            <div class="me-3">
+                <i class="fas fa-lightbulb fa-2x"></i>
+            </div>
+            <div>
+                <h5>This is a Slow Channel</h5>
+                <p class="mb-0">
+                    Messages in this channel are delayed intentionally to encourage thoughtful communication.
+                    There's a minimum interval of <strong>{{ channel.min_response_interval.total_seconds|divisibleby:3600 }} hours</strong> between your messages
+                    to give everyone time to reflect before responding.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Post Message Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Post a Message</h5>
+        </div>
+        <div class="card-body">
+            {% if not can_post %}
+            <div class="alert alert-warning">
+                <i class="fas fa-hourglass-half"></i>
+                Please wait <strong>{{ time_until_next_post }}</strong> before posting again.
+                This interval encourages thoughtful communication rather than rapid exchanges.
+            </div>
+            {% endif %}
+            
+            <form method="POST">
+                {% csrf_token %}
+                
+                {% if form.prompt.field.choices|length > 1 %}
+                <div class="mb-3">
+                    <label for="{{ form.prompt.id_for_label }}" class="form-label">Choose a Reflection Prompt (Optional)</label>
+                    {{ form.prompt.errors }}
+                    <select name="{{ form.prompt.name }}" id="{{ form.prompt.id_for_label }}"
+                          class="form-select {% if form.prompt.errors %}is-invalid{% endif %}">
+                        {% for value, text in form.prompt.field.choices %}
+                        <option value="{{ value }}">{{ text }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <label for="{{ form.content.id_for_label }}" class="form-label">Message</label>
+                    {{ form.content.errors }}
+                    <textarea name="{{ form.content.name }}" id="{{ form.content.id_for_label }}"
+                             class="form-control {% if form.content.errors %}is-invalid{% endif %}"
+                             rows="4" placeholder="Take your time to compose a thoughtful message..."
+                             {% if not can_post %}disabled{% endif %}>{{ form.content.value|default:'' }}</textarea>
+                </div>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <button type="submit" class="btn btn-primary" {% if not can_post %}disabled{% endif %}>
+                        <i class="fas fa-paper-plane"></i> Schedule Message
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Messages List -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Messages</h5>
+        </div>
+        <div class="card-body">
+            <div id="messages-list">
+                {% if messages %}
+                    {% for message in messages %}
+                    <div class="message-container mb-4">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>{{ message.user.username }}</strong>
+                                        {% if message.user == channel.created_by %}
+                                            <span class="badge bg-info ms-1">Creator</span>
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted">{{ message.delivered_at|date:"M d, Y" }} at {{ message.delivered_at|time:"g:i A" }}</small>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                {% if message.prompt %}
+                                <div class="mb-3">
+                                    <span class="badge bg-secondary">Prompt: {{ message.prompt }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                <div class="message-content">
+                                    {{ message.content|linebreaks }}
+                                </div>
+                                
+                                <div class="message-actions mt-3">
+                                    <button class="btn btn-sm btn-outline-secondary toggle-reply-form" data-message-id="{{ message.id }}">
+                                        <i class="fas fa-reply"></i> Reply
+                                    </button>
+                                </div>
+                                
+                                <!-- Reply form (initially hidden) -->
+                                <div class="reply-form mt-3" id="reply-form-{{ message.id }}" style="display: none;">
+                                    <form method="POST">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="parent_id" value="{{ message.id }}">
+                                        <div class="mb-3">
+                                            <textarea name="{{ form.content.name }}" class="form-control" rows="3" 
+                                                    placeholder="Write a thoughtful reply..."></textarea>
+                                        </div>
+                                        <div class="d-flex justify-content-end">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary me-2 cancel-reply">
+                                                Cancel
+                                            </button>
+                                            <button type="submit" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-paper-plane"></i> Send Reply
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            
+                            <!-- Replies -->
+                            {% if message.replies_list %}
+                            <div class="card-footer bg-white">
+                                <h6 class="mb-3 text-muted">Replies</h6>
+                                
+                                {% for reply in message.replies_list %}
+                                <div class="reply mb-3 ps-3 border-start">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <strong>{{ reply.user.username }}</strong>
+                                        <small class="text-muted">{{ reply.delivered_at|date:"M d, Y" }} at {{ reply.delivered_at|time:"g:i A" }}</small>
+                                    </div>
+                                    <div class="reply-content">
+                                        {{ reply.content|linebreaks }}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-comments fa-4x text-muted mb-3"></i>
+                        <p class="text-muted">No messages have been delivered yet.</p>
+                        <p>Be the first to post in this slow channel!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Toggle reply forms
+        const replyButtons = document.querySelectorAll('.toggle-reply-form');
+        
+        replyButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const messageId = this.getAttribute('data-message-id');
+                const replyForm = document.getElementById(`reply-form-${messageId}`);
+                
+                // Hide all other reply forms
+                document.querySelectorAll('.reply-form').forEach(form => {
+                    if (form.id !== `reply-form-${messageId}`) {
+                        form.style.display = 'none';
+                    }
+                });
+                
+                // Toggle this reply form
+                replyForm.style.display = replyForm.style.display === 'none' ? 'block' : 'none';
+                
+                // Focus the textarea if showing
+                if (replyForm.style.display === 'block') {
+                    replyForm.querySelector('textarea').focus();
+                }
+            });
+        });
+        
+        // Cancel reply buttons
+        const cancelButtons = document.querySelectorAll('.cancel-reply');
+        
+        cancelButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const replyForm = this.closest('.reply-form');
+                replyForm.style.display = 'none';
+            });
+        });
+    });
+</script>
+{% endblock %}
+
+<!-- templates/workspace/slow_channel_confirm_delete.html -->
+{% extends 'base.html' %}
+
+{% block title %}Delete {{ channel.title }} | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">Delete Slow Channel</h4>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning"></i>
+                </div>
+                <h4>Are you sure you want to delete "{{ channel.title }}"?</h4>
+                <p class="text-muted">This action cannot be undone. All messages in this channel will be permanently deleted.</p>
+                
+                <div class="alert alert-warning">
+                    <small>
+                        <i class="fas fa-info-circle"></i> Type: {{ channel.get_type_display }} | 
+                        Created: {{ channel.created_at|date:"M d, Y" }} | 
+                        Participants: {{ channel.participants.count }}
+                    </small>
+                </div>
+                
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-4">
+                        <a href="{% url 'slow_channel_detail' channel.pk %}" class="btn btn-outline-secondary me-md-2">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<!-- templates/workspace/my_slow_channels.html -->
+{% extends 'base.html' %}
+
+{% block title %}My Slow Channels | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>My Slow Channels</h1>
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-12">
+            {% if channels %}
+                <div class="row">
+                    {% for channel in channels %}
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-light">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-clock text-primary me-2"></i>
+                                        {{ channel.title }}
+                                    </h5>
+                                    <span class="badge bg-secondary">{{ channel.get_type_display }}</span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted small">{{ channel.description|truncatechars:150 }}</p>
+                                
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar-alt"></i> {{ channel.get_message_frequency_display }} at {{ channel.delivery_time|time:"g:i A" }}
+                                    </small>
+                                </div>
+                                
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="fas fa-users"></i> {{ channel.participants.count }} participants
+                                    </small>
+                                </div>
+                                
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="fas fa-project-diagram"></i> In: {{ channel.work_item.title }}
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-white">
+                                <a href="{% url 'slow_channel_detail' channel.pk %}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-eye"></i> View Channel
+                                </a>
+                                
+                                {% if channel.created_by == request.user %}
+                                <a href="{% url 'update_slow_channel' channel.pk %}" class="btn btn-outline-secondary btn-sm">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                                {% else %}
+                                <a href="{% url 'leave_slow_channel' channel.pk %}" class="btn btn-outline-secondary btn-sm">
+                                    <i class="fas fa-sign-out-alt"></i> Leave
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-clock fa-4x text-muted mb-3"></i>
+                    <h3 class="text-muted">No slow channels yet</h3>
+                    <p>You're not participating in any slow channels. These channels are designed for thoughtful, asynchronous communication.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
