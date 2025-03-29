@@ -42,6 +42,9 @@ def work_item_detail(request, pk):
     user_threads = Thread.objects.filter(work_item=work_item)
     threads = [thread for thread in user_threads if thread.user_can_access(request.user)]
     
+    # Get slow channels for this work item
+    slow_channels = SlowChannel.objects.filter(work_item=work_item, participants=request.user)
+    
     # Get files
     files = work_item.files.all() if hasattr(work_item, 'files') else []
     
@@ -56,6 +59,7 @@ def work_item_detail(request, pk):
     context = {
         'work_item': work_item,
         'threads': threads,
+        'slow_channels': slow_channels,
         'files': files
     }
     return render(request, 'workspace/work_item_detail.html', context)
