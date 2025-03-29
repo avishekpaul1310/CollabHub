@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.csrf import csrf_exempt
 from .models import WorkItem, Message, Notification, NotificationPreference, ScheduledMessage, MessageReadReceipt
 from .forms import WorkItemForm, MessageForm, ThreadForm
@@ -13,6 +13,7 @@ from .forms import FileAttachmentForm, NotificationPreferenceForm, ScheduledMess
 import logging
 from django.utils import timezone
 from django.contrib.auth.models import User
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -898,3 +899,73 @@ def leave_slow_channel(request, channel_pk):
     
     messages.success(request, f'You have left the slow channel "{channel.title}"')
     return redirect('work_item_detail', pk=channel.work_item.pk)
+
+@require_GET
+@login_required
+def get_online_status_preference(request):
+    """API endpoint to get current user's online status preference"""
+    try:
+        try:
+            preferences = request.user.notification_preferences
+            show_online_status = preferences.show_online_status
+        except:
+            show_online_status = False
+            
+        return JsonResponse({
+            'status': 'success',
+            'show_online_status': show_online_status
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@require_POST
+@login_required
+def update_online_status(request):
+    """API endpoint to update user's online status"""
+    try:
+        data = json.loads(request.body)
+        status = data.get('status', 'offline')
+        
+        # Check if user has enabled online status
+        try:
+            preferences = request.user.notification_preferences
+            if not preferences.show_online_status:
+                return JsonResponse({'status': 'error', 'message': 'Online status disabled'}, status=400)
+        except:
+            return JsonResponse({'status': 'error', 'message': 'Preferences not found'}, status=404)
+        
+        return JsonResponse({
+            'status': 'success',
+            'online_status': status
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@require_GET
+@login_required
+def get_user_online_status(request, user_id):
+    """API endpoint to get another user's online status"""
+    try:
+        from django.contrib.auth.models import User
+        
+        # Get the target user
+        user = get_object_or_404(User, pk=user_id)
+        
+        # Check if target user has enabled online status
+        try:
+            preferences = user.notification_preferences
+            if not preferences.show_online_status:
+                return JsonResponse({'status': 'hidden', 'message': 'User has disabled online status'})
+        except:
+            return JsonResponse({'status': 'unknown', 'message': 'Preferences not found'})
+        
+        # In a real app, you would fetch the actual status from your storage
+        # For simplicity, we'll return a placeholder
+        return JsonResponse({
+            'status': 'success',
+            'online_status': 'unknown',  # In production, this would be 'active', 'away', or 'offline'
+            'user_id': user_id,
+            'username': user.username
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
