@@ -1,0 +1,273 @@
+<!-- templates/workspace/schedule_message_form.html -->
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">{{ title }}</h4>
+                {% if parent_message %}
+                <small class="text-muted">
+                    Replying to message from {{ parent_message.user.username }}
+                </small>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> Scheduling messages helps create a more thoughtful communication environment. Your message will be sent at the specified time, even if you're offline.
+                </div>
+                
+                <form method="POST">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.content.id_for_label }}" class="form-label">Message Content</label>
+                        {{ form.content.errors }}
+                        <textarea name="{{ form.content.name }}" id="{{ form.content.id_for_label }}"
+                               class="form-control {% if form.content.errors %}is-invalid{% endif %}"
+                               rows="4">{{ form.content.value|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.scheduled_time.id_for_label }}" class="form-label">When to Send</label>
+                        {{ form.scheduled_time.errors }}
+                        <input type="datetime-local" name="{{ form.scheduled_time.name }}" id="{{ form.scheduled_time.id_for_label }}"
+                               class="form-control {% if form.scheduled_time.errors %}is-invalid{% endif %}"
+                               value="{{ form.scheduled_time.value|date:'Y-m-d\TH:i'|default:'' }}">
+                        <div class="form-text">{{ form.scheduled_time.help_text }}</div>
+                        
+                        <div class="mt-2">
+                            <div class="btn-group scheduling-presets">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-time="same-day">Later Today</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-time="next-morning">Tomorrow Morning</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-time="next-week">Next Week</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.scheduling_note.id_for_label }}" class="form-label">Note (Optional)</label>
+                        {{ form.scheduling_note.errors }}
+                        <input type="text" name="{{ form.scheduling_note.name }}" id="{{ form.scheduling_note.id_for_label }}"
+                               class="form-control {% if form.scheduling_note.errors %}is-invalid{% endif %}"
+                               value="{{ form.scheduling_note.value|default:'' }}"
+                               placeholder="Optional: Why are you scheduling this message?">
+                        <div class="form-text">This note is just for you - it won't be visible to others</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a href="{% if thread %}{% url 'thread_detail' work_item.pk thread.pk %}{% else %}{% url 'work_item_detail' work_item.pk %}{% endif %}" class="btn btn-outline-secondary me-md-2">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Schedule Message</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle scheduling preset buttons
+        const presetButtons = document.querySelectorAll('.scheduling-presets button');
+        const scheduledTimeInput = document.getElementById('{{ form.scheduled_time.id_for_label }}');
+        
+        presetButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const preset = this.getAttribute('data-time');
+                const now = new Date();
+                let scheduledTime = new Date();
+                
+                // Calculate the time based on preset
+                switch(preset) {
+                    case 'same-day':
+                        // Set to 2 hours from now
+                        scheduledTime.setHours(now.getHours() + 2);
+                        break;
+                    case 'next-morning':
+                        // Set to 9 AM tomorrow
+                        scheduledTime.setDate(now.getDate() + 1);
+                        scheduledTime.setHours(9, 0, 0);
+                        break;
+                    case 'next-week':
+                        // Set to next Monday at 9 AM
+                        const daysUntilMonday = 1 + (7 - now.getDay()) % 7;
+                        scheduledTime.setDate(now.getDate() + daysUntilMonday);
+                        scheduledTime.setHours(9, 0, 0);
+                        break;
+                }
+                
+                // Format for datetime-local input
+                const year = scheduledTime.getFullYear();
+                const month = String(scheduledTime.getMonth() + 1).padStart(2, '0');
+                const day = String(scheduledTime.getDate()).padStart(2, '0');
+                const hours = String(scheduledTime.getHours()).padStart(2, '0');
+                const minutes = String(scheduledTime.getMinutes()).padStart(2, '0');
+                
+                scheduledTimeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            });
+        });
+    });
+</script>
+{% endblock %}
+
+<!-- templates/workspace/my_scheduled_messages.html -->
+{% extends 'base.html' %}
+
+{% block title %}My Scheduled Messages | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">My Scheduled Messages</h1>
+    
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Pending Messages</h5>
+                </div>
+                <div class="card-body">
+                    {% if pending_messages %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Content</th>
+                                    <th>Where</th>
+                                    <th>Scheduled For</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for message in pending_messages %}
+                                <tr>
+                                    <td>
+                                        {{ message.content|truncatechars:50 }}
+                                        {% if message.scheduling_note %}
+                                        <span class="d-block text-muted small"><i class="fas fa-sticky-note"></i> {{ message.scheduling_note }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'work_item_detail' message.work_item.pk %}">{{ message.work_item.title }}</a>
+                                        {% if message.thread %}
+                                        <span class="d-block text-muted small">Thread: {{ message.thread.title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ message.scheduled_time|date:"M d, Y" }}<br>
+                                        <span class="text-muted">{{ message.scheduled_time|time:"g:i A" }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'edit_scheduled_message' message.pk %}" class="btn btn-outline-primary">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </a>
+                                            <a href="{% url 'cancel_scheduled_message' message.pk %}" class="btn btn-outline-danger">
+                                                <i class="fas fa-times"></i> Cancel
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-clock fa-3x text-muted mb-3"></i>
+                        <p>You don't have any pending scheduled messages.</p>
+                        <p class="text-muted">When you schedule messages, they will appear here.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if sent_messages %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recently Sent Scheduled Messages</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Content</th>
+                                    <th>Where</th>
+                                    <th>Scheduled For</th>
+                                    <th>Sent At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for message in sent_messages %}
+                                <tr class="text-muted">
+                                    <td>{{ message.content|truncatechars:50 }}</td>
+                                    <td>
+                                        <a href="{% url 'work_item_detail' message.work_item.pk %}" class="text-muted">{{ message.work_item.title }}</a>
+                                        {% if message.thread %}
+                                        <span class="d-block text-muted small">Thread: {{ message.thread.title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ message.scheduled_time|date:"M d, Y g:i A" }}</td>
+                                    <td>{{ message.sent_at|date:"M d, Y g:i A" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+<!-- templates/workspace/cancel_scheduled_message.html -->
+{% extends 'base.html' %}
+
+{% block title %}Cancel Scheduled Message | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">Cancel Scheduled Message</h4>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <i class="fas fa-clock fa-3x text-danger"></i>
+                </div>
+                <h4>Are you sure you want to cancel this scheduled message?</h4>
+                <p class="text-muted">This message was scheduled to be sent on {{ message.scheduled_time|date:"M d, Y" }} at {{ message.scheduled_time|time:"g:i A" }}.</p>
+                
+                <div class="alert alert-secondary">
+                    <strong>Message content:</strong>
+                    <p class="mb-0">{{ message.content }}</p>
+                </div>
+                
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-4">
+                        <a href="{% url 'my_scheduled_messages' %}" class="btn btn-outline-secondary me-md-2">
+                            <i class="fas fa-arrow-left"></i> Back
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-times"></i> Cancel This Message
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
