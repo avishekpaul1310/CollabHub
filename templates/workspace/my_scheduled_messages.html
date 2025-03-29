@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}My Scheduled Messages | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">My Scheduled Messages</h1>
+    
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Pending Messages</h5>
+                </div>
+                <div class="card-body">
+                    {% if pending_messages %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Content</th>
+                                    <th>Where</th>
+                                    <th>Scheduled For</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for message in pending_messages %}
+                                <tr>
+                                    <td>
+                                        {{ message.content|truncatechars:50 }}
+                                        {% if message.scheduling_note %}
+                                        <span class="d-block text-muted small"><i class="fas fa-sticky-note"></i> {{ message.scheduling_note }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'work_item_detail' message.work_item.pk %}">{{ message.work_item.title }}</a>
+                                        {% if message.thread %}
+                                        <span class="d-block text-muted small">Thread: {{ message.thread.title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ message.scheduled_time|date:"M d, Y" }}<br>
+                                        <span class="text-muted">{{ message.scheduled_time|time:"g:i A" }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'edit_scheduled_message' message.pk %}" class="btn btn-outline-primary">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </a>
+                                            <a href="{% url 'cancel_scheduled_message' message.pk %}" class="btn btn-outline-danger">
+                                                <i class="fas fa-times"></i> Cancel
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-clock fa-3x text-muted mb-3"></i>
+                        <p>You don't have any pending scheduled messages.</p>
+                        <p class="text-muted">When you schedule messages, they will appear here.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if sent_messages %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recently Sent Scheduled Messages</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Content</th>
+                                    <th>Where</th>
+                                    <th>Scheduled For</th>
+                                    <th>Sent At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for message in sent_messages %}
+                                <tr class="text-muted">
+                                    <td>{{ message.content|truncatechars:50 }}</td>
+                                    <td>
+                                        <a href="{% url 'work_item_detail' message.work_item.pk %}" class="text-muted">{{ message.work_item.title }}</a>
+                                        {% if message.thread %}
+                                        <span class="d-block text-muted small">Thread: {{ message.thread.title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ message.scheduled_time|date:"M d, Y g:i A" }}</td>
+                                    <td>{{ message.sent_at|date:"M d, Y g:i A" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
