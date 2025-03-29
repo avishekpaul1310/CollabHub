@@ -91,19 +91,25 @@ class UserAuthenticationTests(TestCase):
             'password2': 'different_password',
         }
         response = self.client.post(self.register_url, data)
-        
+    
         # Form should display error and not create user
         self.assertEqual(response.status_code, 200)
         self.assertEqual(User.objects.count(), 1)
-        
+    
         # Check if form has the expected error
         form = response.context.get('form')
         self.assertTrue(form.errors)
         self.assertIn('password2', form.errors)
-        
-        # Check that the error message is in the list of errors
-        password_errors = form.errors['password2']
-        self.assertIn("The two password fields didn't match.", password_errors[0])
+    
+        # Get the error message directly without trying to access it as a list element
+        password_error = form.errors['password2']
+    
+        # If it's a list, take the first element, otherwise use it as is
+        if isinstance(password_error, list):
+            password_error = password_error[0]
+    
+        # Now check the content matches what we expect
+        self.assertEqual(password_error, "The two password fields didn't match.")
     
     def test_register_existing_username(self):
         """Test registration with an existing username."""
