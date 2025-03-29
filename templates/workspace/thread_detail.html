@@ -106,7 +106,7 @@
             <div id="messages-list" class="mb-3" style="height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 5px; padding: 10px;">
                 <!-- Main thread messages only -->
                 {% for message in messages %}
-                    <div class="message-container mb-3" id="message-{{ message.id }}">
+                    <div class="message-container mb-3" id="message-{{ message.id }}" data-message-id="{{ message.id }}">
                         <div class="message p-3 {% if message.user == request.user %}bg-light border-end border-primary border-3{% else %}border-start border-primary border-3{% endif %} rounded">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <div>
@@ -116,9 +116,6 @@
                                     {% endif %}
                                     {% if message.user == work_item.owner %}
                                         <span class="badge bg-secondary ms-1">Owner</span>
-                                    {% endif %}
-                                    {% if message.is_scheduled %}
-                                        <span class="badge bg-warning text-dark ms-1">Scheduled</span>
                                     {% endif %}
                                 </div>
                                 <div class="d-flex align-items-center">
@@ -289,6 +286,7 @@
         const messageContainer = document.createElement('div');
         messageContainer.className = 'message-container mb-3';
         messageContainer.id = `message-${data.message_id}`;
+        messageContainer.setAttribute('data-message-id', data.message_id);
         
         // Create message element
         const messageElement = document.createElement('div');
@@ -300,7 +298,16 @@
                 <div>
                     <strong>${data.username}</strong>
                 </div>
-                <small class="text-muted">${data.timestamp}</small>
+                <div class="d-flex align-items-center">
+                    ${isCurrentUser ? `
+                    <button class="btn btn-sm btn-link text-muted read-receipt-icon p-0 me-2" 
+                            data-message-id="${data.message_id}" 
+                            data-bs-toggle="tooltip" 
+                            title="See who has read this message">
+                        <i class="fas fa-eye"></i>
+                    </button>` : ''}
+                    <small class="text-muted">${data.timestamp}</small>
+                </div>
             </div>
             <div class="message-content mb-2">${data.message}</div>
             <div class="message-actions d-flex align-items-center">
@@ -362,7 +369,16 @@
                     <div>
                         <strong>${data.username}</strong>
                     </div>
-                    <small class="text-muted">${data.timestamp}</small>
+                    <div class="d-flex align-items-center">
+                        ${isCurrentUser ? `
+                        <button class="btn btn-sm btn-link text-muted read-receipt-icon p-0 me-2" 
+                                data-message-id="${data.message_id}" 
+                                data-bs-toggle="tooltip" 
+                                title="See who has read this message">
+                            <i class="fas fa-eye"></i>
+                        </button>` : ''}
+                        <small class="text-muted">${data.timestamp}</small>
+                    </div>
                 </div>
                 <div class="reply-content">${data.message}</div>
                 <div class="reply-actions mt-1">
@@ -402,12 +418,18 @@
             if (replyButton) {
                 replyButton.addEventListener('click', showReplyForm);
             }
+            
+            // Add event listeners to read receipt icons if present
+            const readReceiptIcon = replyElement.querySelector('.read-receipt-icon');
+            if (readReceiptIcon) {
+                readReceiptIcon.addEventListener('click', showReadReceipts);
+            }
         }
     }
     
     // Handle WebSocket connection close
     chatSocket.onclose = function(e) {
-        console.error('WebSocket connection closed unexpectedly', e);
+        console.log('WebSocket connection closed unexpectedly', e);
         
         // Update connection status
         connectionIndicator.innerHTML = '<i class="fas fa-times-circle text-danger"></i>';
@@ -466,6 +488,18 @@
         replyForms.forEach(form => {
             form.addEventListener('submit', handleReplySubmit);
         });
+        
+        // Read receipt icons
+        const readReceiptIcons = container.querySelectorAll('.read-receipt-icon');
+        readReceiptIcons.forEach(icon => {
+            icon.addEventListener('click', showReadReceipts);
+        });
+    }
+    
+    // Show read receipts popup
+    function showReadReceipts() {
+        // Implementation would go here
+        console.log('Show read receipts for message:', this.getAttribute('data-message-id'));
     }
     
     // Show reply form when reply button is clicked
@@ -570,30 +604,5 @@
         const messagesList = document.getElementById('messages-list');
         messagesList.scrollTop = messagesList.scrollHeight;
     });
-
 </script>
-<style>
-    .read-receipt-popover {
-        max-width: 300px;
-    }
-    
-    .read-receipt-loading {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 10px;
-    }
-    
-    .read-receipt-icon {
-        opacity: 0.6;
-        transition: opacity 0.2s;
-    }
-    
-    .read-receipt-icon:hover {
-        opacity: 1;
-    }
-</style>
-{% block extra_js %}
-{{ block.super }}
-<script src="{% static 'js/read-receipts.js' %}"></script>
 {% endblock %}
