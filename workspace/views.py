@@ -8,9 +8,10 @@ from .models import WorkItem, Message, Notification, NotificationPreference, Sch
 from .forms import WorkItemForm, MessageForm, ThreadForm
 from django.db.models import Q
 from django.db import IntegrityError
-from .models import Thread, FileAttachment
-from .forms import FileAttachmentForm, NotificationPreferenceForm, ScheduledMessageForm
+from .models import Thread, FileAttachment, SlowChannel, SlowChannelMessage
+from .forms import FileAttachmentForm, NotificationPreferenceForm, ScheduledMessageForm, SlowChannelForm, SlowChannelParticipantsForm, SlowChannelMessageForm
 import logging
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -627,3 +628,251 @@ def mark_thread_read(request, thread_id):
         
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@login_required
+def create_slow_channel(request, work_item_pk):
+    """View to create a new slow channel for a work item"""
+    work_item = get_object_or_404(WorkItem, pk=work_item_pk)
+    
+    # Check if user has permission to create channels in this work item
+    if work_item.owner != request.user and request.user not in work_item.collaborators.all():
+        messages.error(request, "You don't have permission to create channels in this work item.")
+        return redirect('work_item_detail', pk=work_item.pk)
+    
+    if request.method == 'POST':
+        form = SlowChannelForm(request.POST, work_item=work_item, user=request.user)
+        participants_form = SlowChannelParticipantsForm(request.POST, work_item=work_item)
+        
+        if form.is_valid() and participants_form.is_valid():
+            channel = form.save()
+            
+            # Add selected participants
+            participants = participants_form.cleaned_data['participants']
+            for participant in participants:
+                channel.participants.add(participant)
+            
+            # Always make sure creator is a participant
+            channel.participants.add(request.user)
+            
+            messages.success(request, f'Slow channel "{channel.title}" has been created!')
+            return redirect('slow_channel_detail', channel_pk=channel.pk)
+    else:
+        form = SlowChannelForm(work_item=work_item, user=request.user)
+        participants_form = SlowChannelParticipantsForm(work_item=work_item)
+    
+    context = {
+        'form': form,
+        'participants_form': participants_form,
+        'work_item': work_item,
+        'title': 'Create Slow Channel'
+    }
+    return render(request, 'workspace/slow_channel_form.html', context)
+
+@login_required
+def update_slow_channel(request, channel_pk):
+    """View to update a slow channel"""
+    channel = get_object_or_404(SlowChannel, pk=channel_pk)
+    work_item = channel.work_item
+    
+    # Check permissions
+    if channel.created_by != request.user and work_item.owner != request.user:
+        messages.error(request, "You don't have permission to edit this channel.")
+        return redirect('slow_channel_detail', channel_pk=channel.pk)
+    
+    if request.method == 'POST':
+        form = SlowChannelForm(request.POST, instance=channel, work_item=work_item, user=request.user)
+        participants_form = SlowChannelParticipantsForm(request.POST, work_item=work_item, channel=channel)
+        
+        if form.is_valid() and participants_form.is_valid():
+            channel = form.save()
+            
+            # Update participants
+            channel.participants.clear()
+            participants = participants_form.cleaned_data['participants']
+            for participant in participants:
+                channel.participants.add(participant)
+            
+            # Always make sure creator is a participant
+            channel.participants.add(channel.created_by)
+            
+            messages.success(request, f'Slow channel "{channel.title}" has been updated!')
+            return redirect('slow_channel_detail', channel_pk=channel.pk)
+    else:
+        form = SlowChannelForm(instance=channel, work_item=work_item, user=request.user)
+        participants_form = SlowChannelParticipantsForm(work_item=work_item, channel=channel)
+    
+    context = {
+        'form': form,
+        'participants_form': participants_form,
+        'channel': channel,
+        'work_item': work_item,
+        'title': 'Update Slow Channel'
+    }
+    return render(request, 'workspace/slow_channel_form.html', context)
+
+@login_required
+def slow_channel_detail(request, channel_pk):
+    """View to display a slow channel"""
+    channel = get_object_or_404(SlowChannel, pk=channel_pk)
+    work_item = channel.work_item
+    
+    # Check if user is a participant
+    if request.user not in channel.participants.all():
+        messages.error(request, "You're not a participant in this slow channel.")
+        return redirect('work_item_detail', pk=work_item.pk)
+    
+    # Get delivered messages
+    messages_list = channel.messages.filter(
+        is_delivered=True,
+        parent=None  # Only top-level messages
+    ).order_by('-created_at')
+    
+    # For each message, attach its replies
+    for message in messages_list:
+        message.replies_list = message.replies.filter(is_delivered=True).order_by('created_at')
+    
+    # Check if user can post based on minimum interval
+    can_post = True
+    time_until_next_post = None
+    
+    last_message = SlowChannelMessage.objects.filter(
+        channel=channel,
+        user=request.user
+    ).order_by('-created_at').first()
+    
+    if last_message:
+        time_since_last = timezone.now() - last_message.created_at
+        min_interval = channel.min_response_interval
+        
+        if time_since_last < min_interval:
+            can_post = False
+            time_left = min_interval - time_since_last
+            # Convert to minutes or hours
+            minutes_left = round(time_left.total_seconds() / 60)
+            
+            if minutes_left > 60:
+                time_until_next_post = f"{round(minutes_left/60, 1)} hours"
+            else:
+                time_until_next_post = f"{minutes_left} minutes"
+    
+    # Process message form
+    if request.method == 'POST':
+        # Check if it's a reply
+        parent_id = request.POST.get('parent_id')
+        parent = None
+        
+        if parent_id:
+            parent = get_object_or_404(SlowChannelMessage, pk=parent_id, channel=channel)
+            # For replies, we don't enforce the minimum interval
+            can_post = True
+        
+        if can_post:
+            form = SlowChannelMessageForm(
+                request.POST,
+                channel=channel,
+                user=request.user,
+                parent=parent
+            )
+            
+            if form.is_valid():
+                message = form.save()
+                
+                if parent:
+                    messages.success(request, "Your reply has been scheduled and will be delivered soon.")
+                else:
+                    next_delivery = message.scheduled_delivery
+                    formatted_time = next_delivery.strftime('%b %d at %I:%M %p')
+                    messages.success(
+                        request, 
+                        f"Your message has been scheduled for delivery on {formatted_time}. "
+                        f"This is a slow channel - messages are intentionally delayed to encourage thoughtful communication."
+                    )
+                
+                return redirect('slow_channel_detail', channel_pk=channel.pk)
+        else:
+            messages.error(
+                request,
+                f"Please wait {time_until_next_post} before posting again. "
+                f"This channel has a minimum interval of {channel.min_response_interval.total_seconds()/3600} "
+                f"hours between messages to encourage thoughtful communication."
+            )
+    
+    # Always have an empty form ready
+    form = SlowChannelMessageForm(channel=channel, user=request.user)
+    
+    context = {
+        'channel': channel,
+        'work_item': work_item,
+        'messages': messages_list,
+        'form': form,
+        'can_post': can_post,
+        'time_until_next_post': time_until_next_post
+    }
+    return render(request, 'workspace/slow_channel_detail.html', context)
+
+@login_required
+def delete_slow_channel(request, channel_pk):
+    """View to delete a slow channel"""
+    channel = get_object_or_404(SlowChannel, pk=channel_pk)
+    work_item = channel.work_item
+    
+    # Check permissions
+    if channel.created_by != request.user and work_item.owner != request.user:
+        messages.error(request, "You don't have permission to delete this channel.")
+        return redirect('slow_channel_detail', channel_pk=channel.pk)
+    
+    if request.method == 'POST':
+        channel_title = channel.title
+        channel.delete()
+        messages.success(request, f'Slow channel "{channel_title}" has been deleted!')
+        return redirect('work_item_detail', pk=work_item.pk)
+    
+    context = {
+        'channel': channel,
+        'work_item': work_item
+    }
+    return render(request, 'workspace/slow_channel_confirm_delete.html', context)
+
+@login_required
+def my_slow_channels(request):
+    """View to list all slow channels the user participates in"""
+    # Get all channels where user is a participant
+    channels = SlowChannel.objects.filter(participants=request.user).order_by('-created_at')
+    
+    context = {
+        'channels': channels
+    }
+    return render(request, 'workspace/my_slow_channels.html', context)
+
+@login_required
+def join_slow_channel(request, channel_pk):
+    """View to join a slow channel"""
+    channel = get_object_or_404(SlowChannel, pk=channel_pk)
+    work_item = channel.work_item
+    
+    # Check if user has access to work item
+    if work_item.owner != request.user and request.user not in work_item.collaborators.all():
+        messages.error(request, "You don't have permission to join this channel.")
+        return redirect('work_item_detail', pk=work_item.pk)
+    
+    # Add user as participant
+    channel.participants.add(request.user)
+    
+    messages.success(request, f'You have joined the slow channel "{channel.title}"!')
+    return redirect('slow_channel_detail', channel_pk=channel.pk)
+
+@login_required
+def leave_slow_channel(request, channel_pk):
+    """View to leave a slow channel"""
+    channel = get_object_or_404(SlowChannel, pk=channel_pk)
+    
+    # Can't leave if you're the creator
+    if channel.created_by == request.user:
+        messages.error(request, "As the creator, you cannot leave this channel.")
+        return redirect('slow_channel_detail', channel_pk=channel.pk)
+    
+    # Remove user as participant
+    channel.participants.remove(request.user)
+    
+    messages.success(request, f'You have left the slow channel "{channel.title}"')
+    return redirect('work_item_detail', pk=channel.work_item.pk)
