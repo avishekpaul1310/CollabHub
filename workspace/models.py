@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+import datetime
 
 class WorkItem(models.Model):
     TYPES = [
@@ -347,5 +348,144 @@ class MessageReadReceipt(models.Model):
     
     def __str__(self):
         return f"{self.user.username} read message {self.message.id} at {self.read_at}"
+
+class SlowChannel(models.Model):
+    """
+    Model for slow channels - places for non-urgent, thoughtful communication
+    with intentional delays to encourage deeper thinking.
+    """
+    TYPE_CHOICES = [
+        ('reflection', 'Team Reflection'),
+        ('ideation', 'Idea Generation'),
+        ('learning', 'Learning & Growth'),
+        ('documentation', 'Documentation'),
+        ('other', 'Other')
+    ]
+    
+    FREQUENCY_CHOICES = [
+        ('daily', 'Once per day'),
+        ('workday', 'Once per workday'),
+        ('weekly', 'Once per week'),
+        ('biweekly', 'Twice per week'),
+        ('custom', 'Custom schedule')
+    ]
+    
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    
+    # Related work item
+    work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='slow_channels')
+    
+    # Admin settings
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_slow_channels')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Delivery settings
+    message_frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='daily')
+    delivery_time = models.TimeField(default='09:00:00')
+    custom_days = models.CharField(
+        max_length=20, 
+        default='12345',  # Monday-Friday
+        help_text="Days to deliver (1=Mon, 7=Sun)"
+    )
+    
+    # Participant settings
+    participants = models.ManyToManyField(User, related_name='slow_channels')
+    
+    # User experience settings
+    min_response_interval = models.DurationField(
+        default=datetime.timedelta(hours=4),
+        help_text="Minimum time between responses to encourage thoughtfulness"
+    )
+    
+    # Optional reflection prompts
+    reflection_prompts = models.TextField(
+        blank=True,
+        help_text="Optional prompts to guide discussion (one per line)"
+    )
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return self.title
+    
+    def get_prompts_list(self):
+        """Get reflection prompts as a list"""
+        if not self.reflection_prompts:
+            return []
+        return [p.strip() for p in self.reflection_prompts.split('\n') if p.strip()]
+    
+    def get_next_delivery_time(self):
+        """Calculate the next time messages should be delivered"""
+        from django.utils import timezone
+        import datetime
+        
+        now = timezone.now()
+        delivery_time = datetime.time(
+            hour=self.delivery_time.hour,
+            minute=self.delivery_time.minute,
+            second=self.delivery_time.second
+        )
+        
+        # Start with today at delivery time
+        next_delivery = timezone.make_aware(
+            datetime.datetime.combine(now.date(), delivery_time)
+        )
+        
+        # If that's in the past, move to the next valid day
+        if next_delivery <= now:
+            next_delivery += datetime.timedelta(days=1)
+        
+        # For custom or weekly schedules, find the next valid day
+        if self.message_frequency in ['custom', 'weekly', 'biweekly']:
+            # Convert custom_days to a list of integers
+            valid_days = [int(d) for d in self.custom_days]
+            
+            # Keep adding days until we hit a valid day
+            while str(next_delivery.isoweekday()) not in self.custom_days:
+                next_delivery += datetime.timedelta(days=1)
+        
+        # For workday frequency, skip weekends
+        elif self.message_frequency == 'workday':
+            while next_delivery.weekday() >= 5:  # Saturday=5, Sunday=6
+                next_delivery += datetime.timedelta(days=1)
+        
+        return next_delivery
+
+
+class SlowChannelMessage(models.Model):
+    """
+    Messages in a slow channel - designed for thoughtful, non-urgent communication
+    """
+    channel = models.ForeignKey(SlowChannel, on_delete=models.CASCADE, related_name='messages')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='slow_channel_messages')
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Delivery tracking
+    is_delivered = models.BooleanField(default=False)
+    scheduled_delivery = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    
+    # Optional fields for reflection
+    prompt = models.CharField(max_length=255, blank=True)
+    
+    # Threading support
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
+    
+    class Meta:
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f"{self.user.username}: {self.content[:50]}"
+    
+    def mark_delivered(self):
+        """Mark this message as delivered"""
+        if not self.is_delivered:
+            self.is_delivered = True
+            self.delivered_at = timezone.now()
+            self.save()
 
 
