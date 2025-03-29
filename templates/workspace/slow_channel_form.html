@@ -169,6 +169,15 @@
             const value = frequencySelect.value;
             if (['custom', 'weekly', 'biweekly'].includes(value)) {
                 customDaysSection.style.display = 'block';
+                
+                // Make sure at least one day is checked for these frequencies
+                const checkboxes = customDaysSection.querySelectorAll('input[type="checkbox"]');
+                const atLeastOneChecked = Array.from(checkboxes).some(checkbox => checkbox.checked);
+                
+                // If none are checked, check Monday (first day) by default
+                if (!atLeastOneChecked && checkboxes.length > 0) {
+                    checkboxes[0].checked = true;
+                }
             } else {
                 customDaysSection.style.display = 'none';
             }

@@ -240,6 +240,10 @@ class SlowChannelForm(forms.ModelForm):
         self.user = kwargs.pop('user', None)
         super(SlowChannelForm, self).__init__(*args, **kwargs)
         
+        # Set default values if this is a new instance
+        if not self.instance.pk:
+            self.fields['custom_days'].initial = ['1', '2', '3', '4', '5']  # Monday-Friday by default
+        
         # Convert min_response_interval from duration to hours
         instance = kwargs.get('instance')
         if instance and instance.min_response_interval:
@@ -252,15 +256,18 @@ class SlowChannelForm(forms.ModelForm):
             return datetime.timedelta(hours=hours)
         return hours
     
-    def clean_custom_days(self):
-        """Ensure at least one day is selected for custom frequency"""
-        custom_days = self.cleaned_data.get('custom_days')
-        frequency = self.cleaned_data.get('message_frequency')
+    def clean(self):
+        """Validate form data"""
+        cleaned_data = super().clean()
         
-        if frequency in ['custom', 'weekly', 'biweekly'] and not custom_days:
-            raise forms.ValidationError("You must select at least one day for delivery")
+        # Check if we need to validate custom_days
+        message_frequency = cleaned_data.get('message_frequency')
+        custom_days = cleaned_data.get('custom_days', [])
         
-        return custom_days
+        if message_frequency in ['custom', 'weekly', 'biweekly'] and not custom_days:
+            self.add_error('custom_days', "You must select at least one day for delivery")
+        
+        return cleaned_data
     
     def save(self, commit=True):
         instance = super(SlowChannelForm, self).save(commit=False)
@@ -276,12 +283,12 @@ class SlowChannelForm(forms.ModelForm):
         if commit:
             instance.save()
             
-            # Add creator as participant for new channels
-            if self.user and not instance.pk:
+            # Add creator as participant
+            if self.user:
                 instance.participants.add(self.user)
                 
-            # For existing channels, make sure creator is still a participant
-            else:
+            # For existing channels with a creator, make sure they're still a participant
+            elif hasattr(instance, 'created_by') and instance.created_by:
                 instance.participants.add(instance.created_by)
             
         return instance
