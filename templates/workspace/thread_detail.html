@@ -34,7 +34,10 @@
                     <i class="fas fa-edit"></i> Edit Thread
                 </a>
                 {% endif %}
-                <a href="{% url 'work_item_detail' work_item.pk %}" class="btn btn-secondary btn-sm">
+                <button id="mark-all-read" class="btn btn-outline-primary btn-sm ms-2" data-thread-id="{{ thread.id }}">
+                    <i class="fas fa-check-double"></i> Mark All Read
+                </button>
+                <a href="{% url 'work_item_detail' work_item.pk %}" class="btn btn-secondary btn-sm ms-2">
                     <i class="fas fa-arrow-left"></i> Back to Work Item
                 </a>
             </div>
@@ -140,6 +143,9 @@
                                     <i class="fas fa-comments"></i> {{ message.reply_count }} replies
                                 </button>
                                 {% endif %}
+                                <a href="{% url 'schedule_reply' work_item.pk thread.pk message.id %}" class="btn btn-sm btn-outline-primary ms-2">
+                                    <i class="fas fa-clock"></i> Schedule Reply
+                                </a>
                             </div>
                         </div>
                         
@@ -147,7 +153,7 @@
                         <div class="replies-container ps-4 mt-2" id="replies-{{ message.id }}" style="display: none;">
                             <!-- Will be filled dynamically when toggled -->
                             {% for reply in message.replies.all %}
-                            <div class="reply p-2 mb-2 {% if reply.user == request.user %}bg-light border-end border-info border-2{% else %}border-start border-info border-2{% endif %} rounded" id="message-{{ reply.id }}">
+                            <div class="reply p-2 mb-2 {% if reply.user == request.user %}bg-light border-end border-info border-2{% else %}border-start border-info border-2{% endif %} rounded" id="message-{{ reply.id }}" data-message-id="{{ reply.id }}">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <div>
                                         <strong>{{ reply.user.username }}</strong>
@@ -198,9 +204,16 @@
             <form id="chat-form" class="mt-3">
                 <div class="input-group">
                     <textarea id="message-input" class="form-control" rows="3" placeholder="Type your message..."></textarea>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-paper-plane"></i> Send
-                    </button>
+                    <div class="input-group-append">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-2 text-end">
+                    <a href="{% url 'schedule_thread_message' work_item.pk thread.pk %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-clock"></i> Schedule Message
+                    </a>
                 </div>
             </form>
         </div>
@@ -209,7 +222,8 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- WebSocket connection section - replace in your thread_detail.html -->
+<script src="{% static 'js/mark-thread-read.js' %}"></script>
+<script src="{% static 'js/read-receipts.js' %}"></script>
 <script>
     // Store thread, work item and user IDs for WebSocket communication
     const threadId = "{{ thread.id }}";
@@ -230,6 +244,20 @@
     let chatSocket = null;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
+    
+    // Attach event listeners to message elements on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize by attaching event listeners to existing elements
+        document.querySelectorAll('.message-container').forEach(container => {
+            attachEventListeners(container);
+        });
+        
+        // Scroll messages list to bottom
+        const messagesList = document.getElementById('messages-list');
+        if (messagesList) {
+            messagesList.scrollTop = messagesList.scrollHeight;
+        }
+    });
     
     function connectWebSocket() {
         try {
@@ -283,7 +311,7 @@
                     
                     // Scroll to bottom for new main messages or if already at bottom
                     const messagesList = document.getElementById('messages-list');
-                    if (!parentId || isNearBottom(messagesList)) {
+                    if (messagesList && (!parentId || isNearBottom(messagesList))) {
                         messagesList.scrollTop = messagesList.scrollHeight;
                     }
                 } catch (error) {
@@ -376,6 +404,7 @@
     // Handle main thread message
     function handleMainMessage(data, isCurrentUser) {
         const messagesList = document.getElementById('messages-list');
+        if (!messagesList) return;
         
         // Create message container
         const messageContainer = document.createElement('div');
@@ -409,6 +438,9 @@
                 <button class="btn btn-sm btn-outline-secondary reply-btn" data-message-id="${data.message_id}">
                     <i class="fas fa-reply"></i> Reply
                 </button>
+                <a href="{% url 'work_item_detail' work_item.pk %}?schedule_reply=${data.message_id}" class="btn btn-sm btn-outline-primary ms-2">
+                    <i class="fas fa-clock"></i> Schedule Reply
+                </a>
             </div>
         `;
         
@@ -457,6 +489,7 @@
             const replyElement = document.createElement('div');
             replyElement.className = `reply p-2 mb-2 ${isCurrentUser ? 'bg-light border-end border-info border-2' : 'border-start border-info border-2'} rounded`;
             replyElement.id = `message-${data.message_id}`;
+            replyElement.setAttribute('data-message-id', data.message_id);
             
             // Format the reply
             replyElement.innerHTML = `
@@ -491,14 +524,16 @@
             if (!toggleButton) {
                 // Create toggle button if it doesn't exist
                 const messageActions = document.querySelector(`#message-${parentId} .message-actions`);
-                const newToggleButton = document.createElement('button');
-                newToggleButton.className = 'btn btn-sm btn-link toggle-replies ms-2';
-                newToggleButton.setAttribute('data-message-id', parentId);
-                newToggleButton.innerHTML = `<i class="fas fa-comments"></i> 1 reply`;
-                messageActions.appendChild(newToggleButton);
-                
-                // Attach event listener
-                newToggleButton.addEventListener('click', toggleReplies);
+                if (messageActions) {
+                    const newToggleButton = document.createElement('button');
+                    newToggleButton.className = 'btn btn-sm btn-link toggle-replies ms-2';
+                    newToggleButton.setAttribute('data-message-id', parentId);
+                    newToggleButton.innerHTML = `<i class="fas fa-comments"></i> 1 reply`;
+                    messageActions.appendChild(newToggleButton);
+                    
+                    // Attach event listener
+                    newToggleButton.addEventListener('click', toggleReplies);
+                }
             } else {
                 // Update existing button text
                 const replyCount = repliesContainer.querySelectorAll('.reply').length;
@@ -522,33 +557,6 @@
         }
     }
     
-    // Handle WebSocket connection close
-    // Attach event listeners to message elements
-    function attachEventListeners(container) {
-        // Reply buttons
-        const replyButtons = container.querySelectorAll('.reply-btn');
-        replyButtons.forEach(button => {
-            button.addEventListener('click', showReplyForm);
-        });
-        
-        // Toggle replies buttons
-        const toggleButtons = container.querySelectorAll('.toggle-replies');
-        toggleButtons.forEach(button => {
-            button.addEventListener('click', toggleReplies);
-        });
-        
-        // Reply forms
-        const replyForms = container.querySelectorAll('.thread-reply-form');
-        replyForms.forEach(form => {
-            form.addEventListener('submit', handleReplySubmit);
-        });
-        
-        // Read receipt icons
-        const readReceiptIcons = container.querySelectorAll('.read-receipt-icon');
-        readReceiptIcons.forEach(icon => {
-            icon.addEventListener('click', showReadReceipts);
-        });
-    }
     // Attach event listeners to message elements
     function attachEventListeners(container) {
         // Reply buttons
@@ -578,14 +586,77 @@
     
     // Show read receipts popup
     function showReadReceipts() {
-        // Implementation would go here
-        console.log('Show read receipts for message:', this.getAttribute('data-message-id'));
+        const messageId = this.getAttribute('data-message-id');
+        if (!messageId) return;
+        
+        fetch(`/api/message/${messageId}/read-status/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                let readByHtml = '';
+                let pendingHtml = '';
+                
+                // Create HTML for users who read the message
+                if (data.read_by && data.read_by.length > 0) {
+                    readByHtml = `<h6 class="mb-2 text-success"><i class="fas fa-check-circle"></i> Read by:</h6><ul class="list-unstyled mb-3">`;
+                    data.read_by.forEach(user => {
+                        const readDate = new Date(user.read_at);
+                        readByHtml += `<li class="small">${user.username} <span class="text-muted">${readDate.toLocaleString()}</span></li>`;
+                    });
+                    readByHtml += `</ul>`;
+                } else {
+                    readByHtml = `<p class="text-muted small">No one has read this message yet.</p>`;
+                }
+                
+                // Create HTML for users who haven't read yet
+                if (data.pending && data.pending.length > 0) {
+                    pendingHtml = `<h6 class="mb-2 text-muted"><i class="fas fa-clock"></i> Not read yet:</h6><ul class="list-unstyled mb-0">`;
+                    data.pending.forEach(user => {
+                        pendingHtml += `<li class="small text-muted">${user.username}</li>`;
+                    });
+                    pendingHtml += `</ul>`;
+                }
+                
+                // Show the information in a popover
+                const popoverContent = `
+                    <div class="read-receipt-content">
+                        <div class="read-by-list">${readByHtml}</div>
+                        <div class="read-pending-list">${pendingHtml}</div>
+                        <div class="mt-3 text-muted small fst-italic">
+                            Remember: Not everyone is online at the same time. Asynchronous communication is key to thoughtful collaboration.
+                        </div>
+                    </div>
+                `;
+                
+                // Use Bootstrap's popover
+                const popover = new bootstrap.Popover(this, {
+                    html: true,
+                    content: popoverContent,
+                    placement: 'left',
+                    trigger: 'focus',
+                    container: 'body'
+                });
+                
+                // Show the popover
+                popover.show();
+            })
+            .catch(error => {
+                console.error(`Error loading read status for message ${messageId}:`, error);
+                alert('Error loading read status. Please try again.');
+            });
     }
     
     // Show reply form when reply button is clicked
     function showReplyForm() {
         const messageId = this.getAttribute('data-message-id');
+        if (!messageId) return;
+        
         const replyForm = document.getElementById(`reply-form-${messageId}`);
+        if (!replyForm) return;
         
         // Hide all other reply forms first
         document.querySelectorAll('.reply-form').forEach(form => {
@@ -599,90 +670,200 @@
         
         // Focus the input if showing
         if (replyForm.style.display === 'block') {
-            replyForm.querySelector('.reply-input').focus();
+            const inputElement = replyForm.querySelector('.reply-input');
+            if (inputElement) inputElement.focus();
         }
     }
     
     // Toggle replies visibility
     function toggleReplies() {
         const messageId = this.getAttribute('data-message-id');
+        if (!messageId) return;
+        
         const repliesContainer = document.getElementById(`replies-${messageId}`);
-        repliesContainer.style.display = repliesContainer.style.display === 'none' ? 'block' : 'none';
+        if (!repliesContainer) return;
+        
+        const isHidden = repliesContainer.style.display === 'none';
+        repliesContainer.style.display = isHidden ? 'block' : 'none';
         
         // Update button text based on state
-        this.innerHTML = repliesContainer.style.display === 'none' 
-            ? `<i class="fas fa-comments"></i> ${repliesContainer.querySelectorAll('.reply').length} ${repliesContainer.querySelectorAll('.reply').length === 1 ? 'reply' : 'replies'}`
-            : `<i class="fas fa-comments"></i> Hide replies`;
+        const replyCount = repliesContainer.querySelectorAll('.reply').length;
+        this.innerHTML = isHidden 
+            ? `<i class="fas fa-comments"></i> Hide replies`
+            : `<i class="fas fa-comments"></i> ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`;
+        
+        // Mark messages as read if they're now visible
+        if (isHidden) {
+            // Use a small delay to ensure DOM is updated
+            setTimeout(() => {
+                repliesContainer.querySelectorAll('[data-message-id]').forEach(element => {
+                    const msgId = element.getAttribute('data-message-id');
+                    markMessageRead(msgId);
+                });
+            }, 100);
+        }
     }
     
     // Handle reply form submission
     function handleReplySubmit(e) {
         e.preventDefault();
         
+        if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+            alert('Connection to server lost. Please refresh the page.');
+            return;
+        }
+        
         const form = this;
-        const parentId = form.querySelector('input[name="parent_id"]').value;
+        const parentIdInput = form.querySelector('input[name="parent_id"]');
+        if (!parentIdInput) return;
+        
+        const parentId = parentIdInput.value;
         const replyInput = form.querySelector('.reply-input');
+        if (!replyInput) return;
+        
         const replyContent = replyInput.value.trim();
         
         if (replyContent) {
-            // Send reply via WebSocket
-            try {
-                chatSocket.send(JSON.stringify({
-                    'message': replyContent,
-                    'user_id': userId,
-                    'parent_id': parentId
-                }));
+            // Show sending indicator
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                const originalHtml = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+                submitBtn.disabled = true;
                 
-                // Clear input and hide form
-                replyInput.value = '';
-                document.getElementById(`reply-form-${parentId}`).style.display = 'none';
-                
-                // Show replies container if it was hidden
-                document.getElementById(`replies-${parentId}`).style.display = 'block';
-            } catch (error) {
-                console.error('Error sending reply:', error);
-                alert('Failed to send reply. Please check your connection.');
+                // Send reply via WebSocket
+                try {
+                    chatSocket.send(JSON.stringify({
+                        'message': replyContent,
+                        'user_id': userId,
+                        'parent_id': parentId
+                    }));
+                    
+                    // Clear input and hide form
+                    replyInput.value = '';
+                    
+                    const replyFormContainer = document.getElementById(`reply-form-${parentId}`);
+                    if (replyFormContainer) {
+                        replyFormContainer.style.display = 'none';
+                    }
+                    
+                    // Show replies container if it was hidden
+                    const repliesContainer = document.getElementById(`replies-${parentId}`);
+                    if (repliesContainer) {
+                        repliesContainer.style.display = 'block';
+                        
+                        // Update the toggle button if it exists
+                        const toggleButton = document.querySelector(`.toggle-replies[data-message-id="${parentId}"]`);
+                        if (toggleButton) {
+                            toggleButton.innerHTML = '<i class="fas fa-comments"></i> Hide replies';
+                        }
+                    }
+                    
+                    // Reset button
+                    submitBtn.innerHTML = originalHtml;
+                    submitBtn.disabled = false;
+                } catch (error) {
+                    console.error('Error sending reply:', error);
+                    alert('Failed to send reply. Please check your connection.');
+                    
+                    // Reset button
+                    submitBtn.innerHTML = originalHtml;
+                    submitBtn.disabled = false;
+                }
             }
         }
     }
     
     // Handle main chat form submission
-    document.getElementById('chat-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const messageInput = document.getElementById('message-input');
-        const message = messageInput.value.trim();
-        
-        if (message) {
-            console.log('Sending message:', message);
+    const chatForm = document.getElementById('chat-form');
+    if (chatForm) {
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
             
-            try {
-                // Send message to WebSocket
-                chatSocket.send(JSON.stringify({
-                    'message': message,
-                    'user_id': userId,
-                    'thread_id': threadId
-                }));
-                
-                // Clear input
-                messageInput.value = '';
-            } catch (error) {
-                console.error('Error sending message:', error);
-                alert('Failed to send message. Please check your connection.');
+            if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+                alert('Connection to server lost. Please refresh the page.');
+                return;
             }
-        }
-    });
-
-    // On page load
-    document.addEventListener('DOMContentLoaded', function() {
-        // Attach event listeners to existing elements
-        document.querySelectorAll('.message-container').forEach(container => {
-            attachEventListeners(container);
+            
+            const messageInput = document.getElementById('message-input');
+            if (!messageInput) return;
+            
+            const message = messageInput.value.trim();
+            
+            if (message) {
+                // Show sending indicator
+                const submitBtn = this.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    const originalHtml = submitBtn.innerHTML;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Sending';
+                    submitBtn.disabled = true;
+                    
+                    try {
+                        // Send message to WebSocket
+                        chatSocket.send(JSON.stringify({
+                            'message': message,
+                            'user_id': userId,
+                            'thread_id': threadId
+                        }));
+                        
+                        // Clear input
+                        messageInput.value = '';
+                        
+                        // Reset button after a short delay
+                        setTimeout(() => {
+                            submitBtn.innerHTML = originalHtml;
+                            submitBtn.disabled = false;
+                        }, 500);
+                    } catch (error) {
+                        console.error('Error sending message:', error);
+                        alert('Failed to send message. Please check your connection.');
+                        
+                        // Reset button
+                        submitBtn.innerHTML = originalHtml;
+                        submitBtn.disabled = false;
+                    }
+                }
+            }
         });
+    }
+    
+    // Function to mark a message as read via API
+    function markMessageRead(messageId) {
+        if (!messageId) return;
         
-        // Scroll messages list to bottom on page load
-        const messagesList = document.getElementById('messages-list');
-        messagesList.scrollTop = messagesList.scrollHeight;
-    });
+        // Check if the message is from the current user (don't need to mark our own messages)
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement && messageElement.querySelector('.message-user')?.textContent === username) {
+            return;
+        }
+        
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        if (!csrfToken) {
+            console.error('CSRF token not found');
+            return;
+        }
+        
+        fetch(`/api/message/${messageId}/mark-read/`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log(`Message ${messageId} marked as read:`, data);
+        })
+        .catch(error => {
+            console.error(`Error marking message ${messageId} as read:`, error);
+        });
+    }
 </script>
 {% endblock %}
