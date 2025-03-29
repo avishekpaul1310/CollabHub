@@ -101,14 +101,9 @@ class UserAuthenticationTests(TestCase):
         self.assertTrue(form.errors)
         self.assertIn('password2', form.errors)
         
-        # Instead of trying to compare the exact format, just check that the form
-        # has an error for the password2 field
-        password_errors = form.errors.get('password2', [])
-        self.assertTrue(len(password_errors) > 0)
-        
-        # Check that the error message is present
+        # Check that the error message with period is present
         error_text = str(form.errors)
-        self.assertIn("The two password fields didn't match", error_text)
+        self.assertIn("The two password fields didn't match.", error_text)
     
     def test_register_existing_username(self):
         """Test registration with an existing username."""
