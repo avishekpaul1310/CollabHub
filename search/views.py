@@ -29,30 +29,57 @@ def search_view(request):
     
     results = []
     total_results = 0
-    work_items_count = 0
-    messages_count = 0
-    files_count = 0
-    threads_count = 0
-    channels_count = 0
     
-    if query or form.is_valid() and any(form.cleaned_data.values()):
-        # Track search in history
-        log_search(request, query, request.GET.dict(), 0)  # We'll update the count later
+    # Process search and filters when form is valid
+    if query or (form.is_valid() and any(form.cleaned_data.values())):
+        # Log this search
+        log_search(request, query, request.GET.dict(), 0)
         
-        # Get filter parameters from form
+        # Get filter values from form
         filters = {}
         if form.is_valid():
             filters = form.cleaned_data
+            
+        # Get content types to search or default to all
+        content_types = filters.get('content_types', [])
+        if not content_types:
+            content_types = ['work_item', 'message', 'thread', 'file', 'channel']
+            
+        # Initialize counters
+        work_items_count = 0
+        messages_count = 0
+        files_count = 0
+        threads_count = 0
+        channels_count = 0
         
-        # Perform the actual search with filters
-        work_items = search_work_items(request.user, query, filters)
-        messages = search_messages(request.user, query, filters)
-        threads = search_threads(request.user, query, filters)
-        files = search_files(request.user, query, filters)
-        channels = search_channels(request.user, query, filters)
+        # Perform filtered searches based on content types
+        work_items = []
+        messages = []
+        threads = []
+        files = []
+        channels = []
         
-        # Combine and sort results (by relevance and date)
-        # This is a simplified approach - you can improve it based on your needs
+        if 'work_item' in content_types:
+            work_items = search_work_items(request.user, query, filters)
+            work_items_count = work_items.count()
+            
+        if 'message' in content_types:
+            messages = search_messages(request.user, query, filters)
+            messages_count = messages.count()
+            
+        if 'thread' in content_types:
+            threads = search_threads(request.user, query, filters)
+            threads_count = threads.count()
+            
+        if 'file' in content_types:
+            files = search_files(request.user, query, filters)
+            files_count = files.count()
+            
+        if 'channel' in content_types:
+            channels = search_channels(request.user, query, filters)
+            channels_count = channels.count()
+        
+        # Combine and format results
         results = []
         
         # Add work items to results
@@ -124,22 +151,17 @@ def search_view(request):
                 'relevance_score': calculate_relevance(query, channel.title, channel.description)
             })
         
-        # Sort results by relevance (highest first) and then date (newest first)
+        # Sort results by relevance score and date
         results.sort(key=lambda x: (-x['relevance_score'], -x['date'].timestamp()))
         
-        # Count all results by type
+        # Update total counts
         total_results = len(results)
-        work_items_count = sum(1 for r in results if r['type'] == 'work_item')
-        messages_count = sum(1 for r in results if r['type'] == 'message')
-        files_count = sum(1 for r in results if r['type'] == 'file')
-        threads_count = sum(1 for r in results if r['type'] == 'thread')
-        channels_count = sum(1 for r in results if r['type'] == 'channel')
         
-        # Update the search log with the count
+        # Update search log
         update_search_log(request, query, request.GET.dict(), total_results)
     
     # Pagination
-    paginator = Paginator(results, 20)  # 20 results per page
+    paginator = Paginator(results, 20)
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
     
@@ -160,7 +182,7 @@ def search_view(request):
         'recent_searches': recent_searches,
     }
     
-    # Return just the results for AJAX requests
+    # AJAX response for filtering
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         result_html = render(request, 'search/partials/search_results.html', context).content.decode('utf-8')
         return JsonResponse({
