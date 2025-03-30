@@ -49,6 +49,7 @@ def search_view(request):
         filters = {}
         if form.is_valid():
             filters = form.cleaned_data
+            print("Applied filters:", filters)  # Debug
         
         # Get content types to filter by (from form or default to all)
         content_types = filters.get('content_types', ['work_item', 'message', 'thread', 'file', 'channel'])
@@ -75,6 +76,13 @@ def search_view(request):
         if 'channel' in content_types:
             channels = search_channels(request.user, query, filters)
             channels_count = channels.count()
+        
+        # After performing the searches, add these debug prints
+        print("Work items count:", work_items_count)
+        print("Messages count:", messages_count)
+        print("Threads count:", threads_count)
+        print("Files count:", files_count)
+        print("Channels count:", channels_count)
         
         # Combine and format results
         results = []
