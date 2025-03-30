@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'channels',
     'users',
     'workspace',
+    'search',
 ]
 
 MIDDLEWARE = [
