@@ -1,0 +1,206 @@
+{% extends 'base.html' %}
+
+{% block title %}Saved Searches | {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Saved Searches</h4>
+                    <a href="{% url 'search' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-arrow-left"></i> Back to Search
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if saved_searches %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Query</th>
+                                        <th>Created</th>
+                                        <th class="text-center">Default</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for search in saved_searches %}
+                                    <tr>
+                                        <td>{{ search.name }}</td>
+                                        <td>
+                                            <div class="text-truncate" style="max-width: 200px;" title="{{ search.query }}">{{ search.query }}</div>
+                                        </td>
+                                        <td>{{ search.created_at|date:"M d, Y" }}</td>
+                                        <td class="text-center">
+                                            <form method="post" action="{% url 'set_default_search' search.pk %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <div class="form-check d-flex justify-content-center">
+                                                    <input class="form-check-input default-search-toggle" type="checkbox" 
+                                                           {% if search.is_default %}checked{% endif %}
+                                                           id="default-{{ search.pk }}" data-search-id="{{ search.pk }}">
+                                                </div>
+                                            </form>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{% url 'saved_search_detail' search.slug %}" class="btn btn-outline-primary">
+                                                    <i class="fas fa-search"></i>
+                                                </a>
+                                                <a href="#" class="btn btn-outline-danger delete-search-btn" data-search-id="{{ search.pk }}" data-search-name="{{ search.name }}">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-bookmark fa-3x text-muted mb-3"></i>
+                            <p>You don't have any saved searches yet.</p>
+                            <p class="text-muted">
+                                Saved searches help you quickly access frequently used search criteria. 
+                                To save a search, click the "Save this search" button when performing a search.
+                            </p>
+                            <a href="{% url 'search' %}" class="btn btn-primary mt-2">
+                                <i class="fas fa-search"></i> Go to Search
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if saved_searches %}
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Create New Saved Search</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'saved_searches' %}">
+                        {% csrf_token %}
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-6">
+                                <label for="{{ form.name.id_for_label }}" class="form-label">Search Name</label>
+                                {{ form.name }}
+                                {% if form.name.errors %}
+                                <div class="text-danger small">{{ form.name.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.is_default.id_for_label }}" class="form-label d-block">&nbsp;</label>
+                                <div class="form-check">
+                                    {{ form.is_default }}
+                                    <label for="{{ form.is_default.id_for_label }}" class="form-check-label">
+                                        Make Default Search
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label d-block">&nbsp;</label>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> Create
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-muted small mt-3">
+                            Note: This will save your most recent search query and filters. 
+                            Make sure to perform the search you want to save before creating a saved search from this page.
+                        </p>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Delete Modal -->
+<div class="modal fade" id="deleteSearchModal" tabindex="-1" aria-labelledby="deleteSearchModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteSearchModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the saved search "<span id="delete-search-name"></span>"?</p>
+                <p class="text-danger mb-0">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="delete-search-form" method="post" action="">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle delete button clicks
+        const deleteButtons = document.querySelectorAll('.delete-search-btn');
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                const searchId = this.dataset.searchId;
+                const searchName = this.dataset.searchName;
+                
+                // Set form action and search name in modal
+                document.getElementById('delete-search-form').action = "{% url 'delete_saved_search' 0 %}".replace('0', searchId);
+                document.getElementById('delete-search-name').textContent = searchName;
+                
+                // Show modal
+                const modal = new bootstrap.Modal(document.getElementById('deleteSearchModal'));
+                modal.show();
+            });
+        });
+        
+        // Handle default toggle
+        const defaultToggles = document.querySelectorAll('.default-search-toggle');
+        defaultToggles.forEach(toggle => {
+            toggle.addEventListener('change', function() {
+                if (this.checked) {
+                    // Uncheck all other toggles
+                    defaultToggles.forEach(t => {
+                        if (t !== this) {
+                            t.checked = false;
+                        }
+                    });
+                    
+                    // Submit the form to set as default
+                    const searchId = this.dataset.searchId;
+                    const url = "{% url 'set_default_search' 0 %}".replace('0', searchId);
+                    
+                    fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            // Success notification could be added here
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error setting default search:', error);
+                        this.checked = false;
+                    });
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
