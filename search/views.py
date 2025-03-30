@@ -21,9 +21,21 @@ logger = logging.getLogger(__name__)
 @login_required
 def search_view(request):
     """Main search view with advanced filters"""
+    # Debug the incoming request
+    print("==== SEARCH REQUEST ====")
+    print("Request method:", request.method)
+    print("Request GET parameters:", request.GET)
+    print("Request headers:", request.headers)
+
     query = request.GET.get('q', '')
     form = AdvancedSearchForm(request.GET)
     
+    # Debug form validation
+    if form.is_valid():
+        print("Form is valid, cleaned data:", form.cleaned_data)
+    else:
+        print("Form validation errors:", form.errors)
+
     # Get saved searches for the user
     saved_searches = SavedSearch.objects.filter(user=request.user)
     
@@ -42,6 +54,7 @@ def search_view(request):
     channels = []
     
     if query or form.is_valid() and any(form.cleaned_data.values()):
+        print(f"Processing search for query: '{query}'")
         # Track search in history
         log_search(request, query, request.GET.dict(), 0)
         
@@ -55,6 +68,8 @@ def search_view(request):
         content_types = filters.get('content_types', ['work_item', 'message', 'thread', 'file', 'channel'])
         if not content_types:
             content_types = ['work_item', 'message', 'thread', 'file', 'channel']
+            
+        print("Selected content types for search:", content_types)
         
         # Perform filtered searches based on content types
         if 'work_item' in content_types:
@@ -161,15 +176,23 @@ def search_view(request):
         
         # Update total count
         total_results = len(results)
+
+        # After sorting results
+        print(f"Total results found: {len(results)}")
+        print(f"First 3 results: {[r['title'] for r in results[:3] if results]}")
         
         # Update the search log with the count
         update_search_log(request, query, request.GET.dict(), total_results)
+    else:
+        print("No search performed - empty query or invalid form")
     
     # Pagination
     paginator = Paginator(results, 20)  # 20 results per page
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
     
+    print(f"Showing page {page_obj.number} of {paginator.num_pages}")
+        
     # Get recent searches
     recent_searches = SearchLog.objects.filter(user=request.user).order_by('-timestamp')[:5]
     
@@ -189,6 +212,7 @@ def search_view(request):
     
     # Return just the results for AJAX requests
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        print("Handling AJAX request - returning partial results")
         result_html = render(request, 'search/partials/search_results.html', context).content.decode('utf-8')
         return JsonResponse({
             'html': result_html,
@@ -200,6 +224,7 @@ def search_view(request):
             'channels': channels_count,
         })
     
+    print("Rendering full search template")
     return render(request, 'search/search.html', context)
 
 def search_work_items(user, query, filters=None):
