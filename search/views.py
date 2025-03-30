@@ -262,26 +262,39 @@ def search_threads(user, query, filters=None):
         Q(owner=user) | Q(collaborators=user)
     ).values_list('id', flat=True)
     
-    threads = Thread.objects.filter(
-        work_item_id__in=accessible_work_items
+    # Start with an empty queryset
+    threads = Thread.objects.none()
+    
+    # Get public threads
+    public_threads = Thread.objects.filter(
+        work_item_id__in=accessible_work_items,
+        is_public=True
     )
     
-    # Handle private threads
-    private_threads = threads.filter(is_public=False)
-    public_threads = threads.filter(is_public=True)
-    
+    # Get accessible private threads
     # User can access private threads if:
     # 1. They created the thread
     # 2. They are in the allowed_users list
     # 3. They are the work item owner (for moderation)
-    accessible_private_threads = private_threads.filter(
+    accessible_private_threads = Thread.objects.filter(
+        work_item_id__in=accessible_work_items,
+        is_public=False
+    ).filter(
         Q(created_by=user) | 
         Q(allowed_users=user) | 
         Q(work_item__owner=user)
     ).distinct()
     
-    # Combine accessible threads
-    threads = public_threads | accessible_private_threads
+    # Combine threads using UNION instead of | operator
+    # We'll use a list to collect the threads and then create a new queryset
+    thread_ids = list(public_threads.values_list('id', flat=True))
+    thread_ids.extend(list(accessible_private_threads.values_list('id', flat=True)))
+    
+    # Get unique IDs
+    unique_thread_ids = list(set(thread_ids))
+    
+    # Create a new queryset with the combined IDs
+    threads = Thread.objects.filter(id__in=unique_thread_ids)
     
     # Apply text search if query provided
     if query:
