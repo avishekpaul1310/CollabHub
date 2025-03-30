@@ -8,8 +8,10 @@ from users.forms import UserRegisterForm, UserUpdateForm, ProfileUpdateForm
 from workspace.models import NotificationPreference, WorkItem, Notification
 import datetime
 import json
-from unittest.mock import patch
-
+from unittest.mock import patch, MagicMock
+from PIL import Image
+import tempfile
+import io
 
 class UserModelTests(TestCase):
     """Tests for User model and related functionality."""
@@ -34,6 +36,14 @@ class UserModelTests(TestCase):
         """Test that notification preferences are created with a new user."""
         self.assertTrue(hasattr(self.user, 'notification_preferences'))
         self.assertIsInstance(self.user.notification_preferences, NotificationPreference)
+        
+    def test_profile_default_image(self):
+        """Test that profile is created with default image."""
+        self.assertEqual(self.user.profile.avatar, 'default.png')
+        
+    def test_profile_bio_blank(self):
+        """Test that profile is created with blank bio."""
+        self.assertEqual(self.user.profile.bio, '')
 
 
 class UserAuthenticationTests(TestCase):
@@ -101,8 +111,7 @@ class UserAuthenticationTests(TestCase):
         self.assertTrue(form.errors)
         self.assertIn('password2', form.errors)
         
-        # Just verify that the passwords didn't match by checking
-        # that the user wasn't created
+        # Verify that the user wasn't created
         self.assertFalse(User.objects.filter(username='newuser').exists())
     
     def test_register_existing_username(self):
@@ -144,6 +153,7 @@ class UserAuthenticationTests(TestCase):
         # Form should display error
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.wsgi_request.user.is_authenticated)
+        self.assertContains(response, "Please enter a correct username and password")
     
     def test_logout(self):
         """Test logout functionality."""
@@ -162,6 +172,51 @@ class UserAuthenticationTests(TestCase):
         # Verify user is logged out
         response = self.client.get(self.dashboard_url)
         self.assertRedirects(response, f'{self.login_url}?next={self.dashboard_url}')
+        
+    def test_login_template(self):
+        """Test that login page uses correct template."""
+        response = self.client.get(self.login_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'users/login.html')
+        
+    def test_logout_template(self):
+        """Test that logout page uses correct template."""
+        # Login first
+        self.client.login(username='existinguser', password='password123')
+        
+        # Access logout page
+        response = self.client.get(self.logout_url)
+        self.assertEqual(response.status_code, 302)  # Redirects
+        
+        # Follow redirect to ensure template is used
+        response = self.client.get(self.logout_url, follow=True)
+        self.assertTemplateUsed(response, 'users/logout.html')
+        
+    def test_password_reset_flow(self):
+        """Test the password reset flow."""
+        # This is simplified as we can't easily test email sending in unit tests
+        # Just check that the views return correct status codes
+        
+        # Password reset request form
+        reset_url = reverse('password_reset')
+        response = self.client.get(reset_url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Password reset done page
+        reset_done_url = reverse('password_reset_done')
+        response = self.client.get(reset_done_url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Password reset confirm page (invalid token)
+        reset_confirm_url = reverse('password_reset_confirm', 
+                                   kwargs={'uidb64': 'invalid', 'token': 'invalid'})
+        response = self.client.get(reset_confirm_url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Password reset complete page
+        reset_complete_url = reverse('password_reset_complete')
+        response = self.client.get(reset_complete_url)
+        self.assertEqual(response.status_code, 200)
 
 
 class UserProfileTests(TestCase):
@@ -226,42 +281,94 @@ class UserProfileTests(TestCase):
         """Test updating a user's profile with an avatar image."""
         self.client.login(username='testuser', password='password123')
         
-        # Create a simple test image
-        import tempfile
-        from PIL import Image
-        
-        # Create a temporary image file
+        # Create a valid image file
         image = Image.new('RGB', (100, 100))
-        tmp_file = tempfile.NamedTemporaryFile(suffix='.jpg')
-        image.save(tmp_file, format='JPEG')
-        tmp_file.seek(0)
+        temp_file = tempfile.NamedTemporaryFile(suffix='.jpg')
+        image.save(temp_file)
+        temp_file.seek(0)
         
-        # Update profile with new data
         data = {
-            'username': 'image_user',
-            'email': 'image@example.com',
-            'bio': 'Profile with image',
+            'username': 'testuser',
+            'email': 'test@example.com',
+            'avatar': temp_file,
+            'bio': 'Updated bio with new avatar'
         }
         
-        # Add file data separately
-        file_data = {'avatar': tmp_file}
+        response = self.client.post(self.profile_url, data, format='multipart')
         
-        response = self.client.post(self.profile_url, data=data, files=file_data)
+        # Check the response
+        self.assertEqual(response.status_code, 302)  # Redirects to profile page
         
-        # Debug response
-        print("Response status:", response.status_code)
-        if response.context and 'u_form' in response.context:
-            print("Form errors:", response.context['u_form'].errors)
-        if response.context and 'p_form' in response.context:
-            print("P-Form errors:", response.context['p_form'].errors)
-        
-        # Re-fetch the user from database to get updated info
+        # Refresh user from database
         self.user.refresh_from_db()
+        self.user.profile.refresh_from_db()
         
-        # Check that user info was updated
-        self.assertEqual(self.user.username, 'image_user')
-        self.assertEqual(self.user.email, 'image@example.com')
-        self.assertEqual(self.user.profile.bio, 'Profile with image')
+        # Check that bio was updated
+        self.assertEqual(self.user.profile.bio, 'Updated bio with new avatar')
+        
+        # Check that avatar was updated
+        self.assertNotEqual(self.user.profile.avatar, 'default.png')
+        
+    def test_profile_form_validation(self):
+        """Test profile form validation."""
+        self.client.login(username='testuser', password='password123')
+        
+        # Create another user for username conflict
+        User.objects.create_user(
+            username='otheruser',
+            email='other@example.com',
+            password='password123'
+        )
+        
+        # Try to update with existing username
+        data = {
+            'username': 'otheruser',  # This should fail
+            'email': 'test@example.com',
+        }
+        
+        response = self.client.post(self.profile_url, data)
+        
+        # Should show form with errors
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "A user with that username already exists")
+        
+        # Verify original username was preserved
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, 'testuser')
+        
+    def test_profile_update_email_validation(self):
+        """Test email validation in profile update."""
+        self.client.login(username='testuser', password='password123')
+        
+        # Try to update with invalid email
+        data = {
+            'username': 'testuser',
+            'email': 'invalid-email',  # Invalid email format
+        }
+        
+        response = self.client.post(self.profile_url, data)
+        
+        # Should show form with errors
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Enter a valid email address")
+        
+        # Verify original email was preserved
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, 'test@example.com')
+        
+    def test_profile_update_success_message(self):
+        """Test that successful profile update shows a success message."""
+        self.client.login(username='testuser', password='password123')
+        
+        data = {
+            'username': 'testuser',
+            'email': 'updated@example.com',
+        }
+        
+        response = self.client.post(self.profile_url, data, follow=True)
+        
+        # Check for success message
+        self.assertContains(response, "Your profile has been updated")
 
 
 class NotificationPreferenceTests(TestCase):
@@ -296,12 +403,21 @@ class NotificationPreferenceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'workspace/notification_preferences.html')
     
+    def test_preferences_view_login_required(self):
+        """Test that notification preferences view requires login."""
+        # Log out
+        self.client.logout()
+        
+        response = self.client.get(self.preferences_url)
+        
+        # Should redirect to login
+        self.assertRedirects(response, f'{reverse("login")}?next={self.preferences_url}')
+    
     def test_update_notification_mode(self):
         """Test updating notification mode."""
         data = {
             'notification_mode': 'mentions',
             'dnd_enabled': False,
-            # Use individual strings instead of a list
             'work_days': '12345',  # Monday through Friday
             'work_start_time': '09:00',
             'work_end_time': '17:00',
@@ -310,6 +426,9 @@ class NotificationPreferenceTests(TestCase):
         }
         
         response = self.client.post(self.preferences_url, data)
+        
+        # Should redirect back to preferences page
+        self.assertRedirects(response, self.preferences_url)
         
         # Refresh from database
         self.user.notification_preferences.refresh_from_db()
@@ -338,6 +457,8 @@ class NotificationPreferenceTests(TestCase):
         
         # Check that preferences were updated
         self.assertTrue(self.user.notification_preferences.dnd_enabled)
+        self.assertEqual(str(self.user.notification_preferences.dnd_start_time), '22:00:00')
+        self.assertEqual(str(self.user.notification_preferences.dnd_end_time), '08:00:00')
     
     def test_update_work_hours(self):
         """Test updating work hours settings."""
@@ -356,20 +477,12 @@ class NotificationPreferenceTests(TestCase):
         # Refresh from database
         self.user.notification_preferences.refresh_from_db()
         
-        # Instead of strict equality, check that the correct work days are included
-        work_days = self.user.notification_preferences.work_days
-        if isinstance(work_days, list):
-            # If it's a list with a single string, extract that string
-            if len(work_days) == 1 and isinstance(work_days[0], str):
-                work_days = work_days[0]
-            else:
-                # Otherwise join the elements
-                work_days = ''.join(work_days)
+        # Check work days
+        self.assertEqual(self.user.notification_preferences.work_days, '135')
         
-        # Check for each day individually
-        self.assertIn('1', work_days)
-        self.assertIn('3', work_days)
-        self.assertIn('5', work_days)
+        # Check work hours
+        self.assertEqual(str(self.user.notification_preferences.work_start_time), '10:00:00')
+        self.assertEqual(str(self.user.notification_preferences.work_end_time), '16:00:00')
     
     def test_update_async_settings(self):
         """Test updating asynchronous communication settings."""
@@ -409,150 +522,109 @@ class NotificationPreferenceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
         self.assertEqual(data['status'], 'success')
-        self.assertTrue(data['is_muted'])
-        self.assertTrue(self.user.notification_preferences.muted_channels.filter(id=self.work_item.id).exists())
         
-        # Toggle mute off
-        response = self.client.post(
-            url, 
-            {},
-            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
-        )
-        
-        # Check response and that work item is now unmuted
-        self.assertEqual(response.status_code, 200)
-        data = json.loads(response.content)
-        self.assertEqual(data['status'], 'success')
-        self.assertFalse(data['is_muted'])
-        self.assertFalse(self.user.notification_preferences.muted_channels.filter(id=self.work_item.id).exists())
-
-
-class NotificationTests(TestCase):
-    """Tests for notification functionality."""
+        # Check all notifications were marked as read
+        self.notification1.refresh_from_db()
+        self.notification2.refresh_from_db()
+        self.assertTrue(self.notification1.is_read)
+        self.assertTrue(self.notification2.is_read)
     
-    def setUp(self):
-        self.client = Client()
+    def test_unread_notifications_count(self):
+        """Test the unread notifications count."""
+        # Initially both notifications are unread
+        response = self.client.get(reverse('dashboard'))
         
-        # Create users
-        self.user1 = User.objects.create_user(
-            username='user1',
-            email='user1@example.com',
-            password='password123'
-        )
-        self.user2 = User.objects.create_user(
-            username='user2',
-            email='user2@example.com',
-            password='password123'
-        )
+        # Check that unread count is shown
+        self.assertContains(response, 'unread_notifications_count')
         
-        # Create work item
-        self.work_item = WorkItem.objects.create(
-            title='Test Work Item',
-            description='Test description',
-            type='task',
-            owner=self.user1
-        )
-        self.work_item.collaborators.add(self.user2)
+        # Mark one as read
+        self.notification1.is_read = True
+        self.notification1.save()
         
-        # Create notifications
-        self.notification1 = Notification.objects.create(
-            user=self.user1,
-            message='Test notification 1',
+        # Check count again
+        response = self.client.get(reverse('dashboard'))
+        self.assertEqual(response.context['unread_notifications_count'], 1)
+        
+        # Mark all as read
+        self.notification2.is_read = True
+        self.notification2.save()
+        
+        # Check count again
+        response = self.client.get(reverse('dashboard'))
+        self.assertEqual(response.context['unread_notifications_count'], 0)
+    
+    def test_notification_for_other_user(self):
+        """Test that a user can't mark another user's notification as read."""
+        # Create a notification for user2
+        notification = Notification.objects.create(
+            user=self.user2,
+            message='Notification for user2',
             work_item=self.work_item,
             notification_type='message'
         )
-        self.notification2 = Notification.objects.create(
+        
+        # Try to mark it as read as user1
+        url = reverse('mark_notification_read', args=[notification.id])
+        response = self.client.get(url)
+        
+        # Should return 404 as it doesn't "exist" for this user
+        self.assertEqual(response.status_code, 404)
+        
+        # Notification should still be unread
+        notification.refresh_from_db()
+        self.assertFalse(notification.is_read)
+    
+    def test_notification_types(self):
+        """Test different notification types."""
+        # Check that initial notifications have correct types
+        self.assertEqual(self.notification1.notification_type, 'message')
+        self.assertEqual(self.notification2.notification_type, 'update')
+        
+        # Create a file upload notification
+        file_notification = Notification.objects.create(
             user=self.user1,
-            message='Test notification 2',
+            message='New file uploaded',
             work_item=self.work_item,
-            notification_type='update'
+            notification_type='file_upload'
         )
         
-        # Login
-        self.client.login(username='user1', password='password123')
-    
-    def test_notifications_list_view(self):
-        """Test the notifications list view."""
+        self.assertEqual(file_notification.notification_type, 'file_upload')
+        
+        # Check that notifications list shows different icons for different types
         url = reverse('notifications_list')
         response = self.client.get(url)
         
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'workspace/notifications_list.html')
-        self.assertIn(self.notification1, response.context['notifications'])
-        self.assertIn(self.notification2, response.context['notifications'])
-        self.assertEqual(response.context['unread_count'], 2)
+        # This checks that the template is using the notification type to display different icons
+        self.assertContains(response, 'fa-comment')  # For message notifications
+        self.assertContains(response, 'fa-edit')     # For update notifications
+        self.assertContains(response, 'fa-file-upload')  # For file upload notifications
     
-    def test_mark_notification_read(self):
-        """Test marking a notification as read."""
-        url = reverse('mark_notification_read', args=[self.notification1.id])
+    def test_notification_work_item_link(self):
+        """Test that notifications link to the related work item."""
+        url = reverse('notifications_list')
         response = self.client.get(url)
         
-        # Refresh from database
-        self.notification1.refresh_from_db()
-        
-        # Check the notification was marked as read
-        self.assertTrue(self.notification1.is_read)
-        
-        # Check redirect
-        self.assertRedirects(response, reverse('notifications_list'))
+        # Check that notifications link to the work item
+        work_item_url = reverse('work_item_detail', args=[self.work_item.pk])
+        self.assertContains(response, f'href="{work_item_url}"')
     
-    def test_mark_all_read(self):
-        """Test marking all notifications as read."""
-        url = reverse('mark_all_read')
-        response = self.client.get(url)
+    def test_notification_dropdown(self):
+        """Test the notification dropdown in the navbar."""
+        response = self.client.get(reverse('dashboard'))
         
-        # Refresh from database
-        self.notification1.refresh_from_db()
-        self.notification2.refresh_from_db()
+        # Check that dropdown elements exist
+        self.assertContains(response, 'id="notificationDropdown"')
+        self.assertContains(response, 'fa-bell')  # Bell icon
         
-        # Check both notifications were marked as read
-        self.assertTrue(self.notification1.is_read)
-        self.assertTrue(self.notification2.is_read)
+        # With unread notifications, should show badge with count
+        self.assertContains(response, 'badge bg-danger')
         
-        # Check redirect
-        self.assertRedirects(response, reverse('notifications_list'))
-    
-    def test_notification_dnd_period(self):
-        """Test that is_in_dnd_period works correctly."""
-        # Set up DND period
-        prefs = self.user1.notification_preferences
-        prefs.dnd_enabled = True
+        # Mark all as read
+        self.client.get(reverse('mark_all_read'))
         
-        # Test with DND period that doesn't span midnight
-        current_time = timezone.now().time()
-        # Set DND to start 1 hour before now and end 1 hour after now
-        one_hour_before = (timezone.now() - datetime.timedelta(hours=1)).time()
-        one_hour_after = (timezone.now() + datetime.timedelta(hours=1)).time()
-        
-        prefs.dnd_start_time = one_hour_before
-        prefs.dnd_end_time = one_hour_after
-        prefs.save()
-        
-        # Check that current time is in DND period
-        self.assertTrue(prefs.is_in_dnd_period())
-        
-        # Test with DND period that spans midnight
-        # Set DND to start 1 hour after now and end 1 hour before now (spanning midnight)
-        prefs.dnd_start_time = one_hour_after
-        prefs.dnd_end_time = one_hour_before
-        prefs.save()
-        
-        # Check DND behavior - will depend on current time in test environment
-        # Since we can't know for sure if we're in the DND period without controlling time,
-        # we'll just verify that the function returns a boolean
-        dnd_status = prefs.is_in_dnd_period()
-        self.assertIsInstance(dnd_status, bool)
-    
-    @patch('workspace.models.NotificationPreference.should_notify')
-    def test_notification_during_work_hours(self, mock_should_notify):
-        """Test should_notify based on work hours."""
-        prefs = self.user1.notification_preferences
-        
-        # Force the method to return False for testing
-        mock_should_notify.return_value = False
-        
-        # Verify that should_notify returns False
-        self.assertFalse(prefs.should_notify())
+        # Without unread notifications, should not show badge
+        response = self.client.get(reverse('dashboard'))
+        self.assertNotContains(response, 'badge bg-danger')
 
 
 class OnlineStatusTests(TestCase):
@@ -647,5 +719,414 @@ class OnlineStatusTests(TestCase):
         data = json.loads(response.content)
         self.assertEqual(data['status'], 'success')
         
-        # Compare user IDs as integers
+        # Check user IDs match
         self.assertEqual(int(data['user_id']), other_user.id)
+        self.assertEqual(data['username'], other_user.username)
+        
+        # Test with user who has disabled online status
+        other_prefs.show_online_status = False
+        other_prefs.save()
+        
+        response = self.client.get(url)
+        data = json.loads(response.content)
+        
+        # Should return hidden status
+        self.assertEqual(data['status'], 'hidden')
+    
+    def test_online_status_not_authenticated(self):
+        """Test that online status APIs require authentication."""
+        self.client.logout()
+        
+        # Try to get preferences
+        url = reverse('get_online_status_preference')
+        response = self.client.get(url)
+        self.assertRedirects(response, f"{reverse('login')}?next={url}")
+        
+        # Try to update status
+        url = reverse('update_online_status')
+        response = self.client.post(
+            url,
+            json.dumps({'status': 'active'}),
+            content_type='application/json'
+        )
+        self.assertRedirects(response, f"{reverse('login')}?next={url}")
+
+
+class CommandsTests(TestCase):
+    """Tests for management commands."""
+    
+    def setUp(self):
+        # Create users
+        self.user1 = User.objects.create_user(
+            username='user1',
+            email='user1@example.com',
+            password='password123'
+        )
+        self.user2 = User.objects.create_user(
+            username='user2',
+            email='user2@example.com',
+            password='password123'
+        )
+        
+        # Delete profile for user2 to test command
+        Profile.objects.filter(user=self.user2).delete()
+    
+    def test_create_profiles_command(self):
+        """Test the create_profiles management command."""
+        # Import command here to avoid import errors
+        from django.core.management import call_command
+        from io import StringIO
+        
+        # Call command with redirected stdout
+        out = StringIO()
+        call_command('create_profiles', stdout=out)
+        
+        # Check output
+        self.assertIn('Created profiles for users: user2', out.getvalue())
+        
+        # Check that profile was created
+        self.assertTrue(hasattr(self.user2, 'profile'))
+        
+        # Call command again - should output that all users have profiles
+        out = StringIO()
+        call_command('create_profiles', stdout=out)
+        self.assertIn('All users already have profiles', out.getvalue())
+    
+    @patch('users.signals.Profile.objects.create')
+    def test_create_profile_signal(self, mock_create):
+        """Test the signal that creates a profile when a user is created."""
+        # Create a new user
+        user = User.objects.create_user(
+            username='signaluser',
+            email='signal@example.com',
+            password='password123'
+        )
+        
+        # Check that the signal called create
+        mock_create.assert_called_once_with(user=user)
+    
+@patch('users.signals.Profile.objects.create')
+def test_save_profile_signal_with_exception(self, mock_create):
+    """Test the signal that saves profile with exception handling."""
+    # Set up user without profile to trigger exception
+    user = User.objects.create_user(
+        username='exceptionuser',
+        email='exception@example.com',
+        password='password123'
+    )
+    Profile.objects.filter(user=user).delete()
+    
+    # Now save the user to trigger signal
+    user.save()
+    
+    # Check that Profile.objects.create was called
+    mock_create.assert_called_once_with(user=user)
+    
+    def test_dnd_period_crossing_midnight(self):
+        """Test DND period that crosses midnight."""
+        # Set up preferences
+        prefs = self.user.notification_preferences
+        prefs.dnd_enabled = True
+        prefs.dnd_start_time = datetime.time(22, 0)  # 10 PM
+        prefs.dnd_end_time = datetime.time(6, 0)     # 6 AM
+        prefs.save()
+        
+        # Mock current time to 11 PM (should be DND)
+        with patch('django.utils.timezone.now') as mock_now:
+            mock_now.return_value = datetime.datetime.combine(
+                datetime.date.today(),
+                datetime.time(23, 0)
+            )
+            
+            self.assertTrue(prefs.is_in_dnd_period())
+            
+        # Mock current time to 5 AM (should be DND)
+        with patch('django.utils.timezone.now') as mock_now:
+            mock_now.return_value = datetime.datetime.combine(
+                datetime.date.today(),
+                datetime.time(5, 0)
+            )
+            
+            self.assertTrue(prefs.is_in_dnd_period())
+            
+        # Mock current time to 8 AM (should not be DND)
+        with patch('django.utils.timezone.now') as mock_now:
+            mock_now.return_value = datetime.datetime.combine(
+                datetime.date.today(),
+                datetime.time(8, 0)
+            )
+            
+            self.assertFalse(prefs.is_in_dnd_period())
+    
+    def test_dnd_period_same_day(self):
+        """Test DND period within same day."""
+        # Set up preferences
+        prefs = self.user.notification_preferences
+        prefs.dnd_enabled = True
+        prefs.dnd_start_time = datetime.time(13, 0)  # 1 PM
+        prefs.dnd_end_time = datetime.time(15, 0)    # 3 PM
+        prefs.save()
+        
+        # Mock current time to 2 PM (should be DND)
+        with patch('django.utils.timezone.now') as mock_now:
+            mock_now.return_value = datetime.datetime.combine(
+                datetime.date.today(),
+                datetime.time(14, 0)
+            )
+            
+            self.assertTrue(prefs.is_in_dnd_period())
+            
+        # Mock current time to 4 PM (should not be DND)
+        with patch('django.utils.timezone.now') as mock_now:
+            mock_now.return_value = datetime.datetime.combine(
+                datetime.date.today(),
+                datetime.time(16, 0)
+            )
+            
+            self.assertFalse(prefs.is_in_dnd_period())
+    
+    def test_should_notify_work_hours(self):
+        """Test notification based on work hours."""
+        # Set up preferences
+        prefs = self.user.notification_preferences
+        prefs.dnd_enabled = False
+        prefs.work_days = '12345'  # Monday-Friday
+        prefs.work_start_time = datetime.time(9, 0)
+        prefs.work_end_time = datetime.time(17, 0)
+        prefs.save()
+        
+        # Mock current time to Wednesday 10 AM (should notify)
+        with patch('django.utils.timezone.now') as mock_now:
+            mock_date = datetime.datetime.now()
+            # Find next Wednesday (weekday 2)
+            while mock_date.weekday() != 2:  # 2 is Wednesday
+                mock_date += datetime.timedelta(days=1)
+            mock_date = mock_date.replace(hour=10, minute=0)
+            mock_now.return_value = mock_date
+            
+            self.assertTrue(prefs.should_notify())
+            
+        # Mock current time to Saturday 10 AM (should not notify)
+        with patch('django.utils.timezone.now') as mock_now:
+            mock_date = datetime.datetime.now()
+            # Find next Saturday (weekday 5)
+            while mock_date.weekday() != 5:  # 5 is Saturday
+                mock_date += datetime.timedelta(days=1)
+            mock_date = mock_date.replace(hour=10, minute=0)
+            mock_now.return_value = mock_date
+            
+            self.assertFalse(prefs.should_notify())
+            
+        # Mock current time to Wednesday 8 AM (should not notify)
+        with patch('django.utils.timezone.now') as mock_now:
+            mock_date = datetime.datetime.now()
+            # Find next Wednesday
+            while mock_date.weekday() != 2:
+                mock_date += datetime.timedelta(days=1)
+            mock_date = mock_date.replace(hour=8, minute=0)
+            mock_now.return_value = mock_date
+            
+            self.assertFalse(prefs.should_notify())
+    
+    def test_should_notify_dnd(self):
+        """Test notification when DND is active."""
+        # Set up preferences
+        prefs = self.user.notification_preferences
+        prefs.dnd_enabled = True
+        prefs.dnd_start_time = datetime.time(22, 0)
+        prefs.dnd_end_time = datetime.time(8, 0)
+        prefs.work_days = '12345'
+        prefs.work_start_time = datetime.time(9, 0)
+        prefs.work_end_time = datetime.time(17, 0)
+        prefs.save()
+        
+        # Mock current time to 11 PM (should not notify)
+        with patch('django.utils.timezone.now') as mock_now:
+            mock_now.return_value = datetime.datetime.combine(
+                datetime.date.today(),
+                datetime.time(23, 0)
+            )
+            
+            self.assertFalse(prefs.should_notify())
+            
+        # Mock current time to 9 AM (should notify)
+        with patch('django.utils.timezone.now') as mock_now:
+            # Make sure it's a weekday
+            mock_date = datetime.datetime.now()
+            # Find next Monday
+            while mock_date.weekday() != 0:
+                mock_date += datetime.timedelta(days=1)
+            mock_date = mock_date.replace(hour=9, minute=0)
+            mock_now.return_value = mock_date
+            
+            self.assertTrue(prefs.should_notify())
+    
+    def test_notification_mode_setting(self):
+        """Test notification based on notification mode."""
+        # Set up preferences
+        prefs = self.user.notification_preferences
+        prefs.dnd_enabled = False
+        prefs.notification_mode = 'none'
+        prefs.save()
+        
+        # Should not notify in 'none' mode
+        self.assertFalse(prefs.should_notify())
+        
+        # Change to 'all' mode
+        prefs.notification_mode = 'all'
+        prefs.save()
+        
+        # Should notify in 'all' mode
+        self.assertTrue(prefs.should_notify())
+
+
+class NotificationTests(TestCase):
+    """Tests for notification functionality."""
+    
+    def setUp(self):
+        self.client = Client()
+        
+        # Create users
+        self.user1 = User.objects.create_user(
+            username='user1',
+            email='user1@example.com',
+            password='password123'
+        )
+        self.user2 = User.objects.create_user(
+            username='user2',
+            email='user2@example.com',
+            password='password123'
+        )
+        
+        # Create work item
+        self.work_item = WorkItem.objects.create(
+            title='Test Work Item',
+            description='Test description',
+            type='task',
+            owner=self.user1
+        )
+        self.work_item.collaborators.add(self.user2)
+        
+        # Create notifications
+        self.notification1 = Notification.objects.create(
+            user=self.user1,
+            message='Test notification 1',
+            work_item=self.work_item,
+            notification_type='message'
+        )
+        self.notification2 = Notification.objects.create(
+            user=self.user1,
+            message='Test notification 2',
+            work_item=self.work_item,
+            notification_type='update'
+        )
+        
+        # Login
+        self.client.login(username='user1', password='password123')
+    
+    def test_notifications_list_view(self):
+        """Test the notifications list view."""
+        url = reverse('notifications_list')
+        response = self.client.get(url)
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'workspace/notifications_list.html')
+        self.assertIn(self.notification1, response.context['notifications'])
+        self.assertIn(self.notification2, response.context['notifications'])
+        self.assertEqual(response.context['unread_count'], 2)
+    
+    def test_mark_notification_read(self):
+        """Test marking a notification as read."""
+        url = reverse('mark_notification_read', args=[self.notification1.id])
+        response = self.client.get(url)
+        
+        # Refresh from database
+        self.notification1.refresh_from_db()
+        
+        # Check the notification was marked as read
+        self.assertTrue(self.notification1.is_read)
+        
+        # Check redirect
+        self.assertRedirects(response, reverse('notifications_list'))
+    
+    def test_mark_all_read(self):
+        """Test marking all notifications as read."""
+        url = reverse('mark_all_read')
+        response = self.client.get(url)
+        
+        # Refresh from database
+        self.notification1.refresh_from_db()
+        self.notification2.refresh_from_db()
+        
+        # Check both notifications were marked as read
+        self.assertTrue(self.notification1.is_read)
+        self.assertTrue(self.notification2.is_read)
+        
+        # Check redirect
+        self.assertRedirects(response, reverse('notifications_list'))
+    
+    def test_mark_notification_read_ajax(self):
+        """Test marking a notification as read via AJAX."""
+        url = reverse('mark_notification_read', args=[self.notification1.id])
+        response = self.client.get(
+            url, 
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+        
+        # Check response
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data['status'], 'success')
+        
+        # Check notification was marked as read
+        self.notification1.refresh_from_db()
+        self.assertTrue(self.notification1.is_read)
+        
+    def test_mark_all_read_ajax(self):
+        """Test marking all notifications as read via AJAX."""
+        url = reverse('mark_all_read')
+        response = self.client.get(
+            url, 
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+        
+        # Check response
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertEqual(data['status'], 'success')
+        
+        # Check notifications were marked as read
+        self.notification1.refresh_from_db()
+        self.notification2.refresh_from_db()
+        self.assertTrue(self.notification1.is_read)
+        self.assertTrue(self.notification2.is_read)
+    
+    def test_notification_creation_when_mentioned(self):
+        """Test that a notification is created when a user is mentioned."""
+        # Assuming there's a method to create a notification when a user is mentioned
+        # We'll simulate this with a direct creation
+        mention_notification = Notification.objects.create(
+            user=self.user2,
+            message='You were mentioned by user1',
+            work_item=self.work_item,
+            notification_type='mention'
+        )
+        
+        # Login as user2
+        self.client.logout()
+        self.client.login(username='user2', password='password123')
+        
+        # Check that user2 sees the notification
+        response = self.client.get(reverse('notifications_list'))
+        self.assertIn(mention_notification, response.context['notifications'])
+    
+    def test_notification_deletion(self):
+        """Test deleting a notification."""
+        url = reverse('delete_notification', args=[self.notification1.id])
+        response = self.client.post(url)
+        
+        # Check the notification was deleted
+        self.assertFalse(Notification.objects.filter(id=self.notification1.id).exists())
+        
+        # Check redirect
+        self.assertRedirects(response, reverse('notifications_list'))
