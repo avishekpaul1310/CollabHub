@@ -632,8 +632,26 @@
         
         // Add filter parameters
         const formData = new FormData(filtersForm);
+        
+        // Handle checkboxes for content types properly
+        const contentTypes = [];
+        formData.getAll('content_types').forEach(value => {
+            if (value) contentTypes.push(value);
+        });
+        
+        // If at least one content type is selected, add them
+        if (contentTypes.length > 0) {
+            // Remove existing entries
+            formData.delete('content_types');
+            // Add each content type individually to params
+            contentTypes.forEach(type => {
+                params.append('content_types', type);
+            });
+        }
+        
+        // Add other form fields
         for (const [key, value] of formData.entries()) {
-            if (value) {
+            if (key !== 'content_types' && value) {
                 params.append(key, value);
             }
         }
@@ -798,6 +816,22 @@
         }
     });
     
+    // Handle content type checkboxes
+    const contentTypeCheckboxes = document.querySelectorAll('input[name="content_types"]');
+    contentTypeCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            // Check if any checkboxes are checked
+            const anyChecked = Array.from(contentTypeCheckboxes).some(cb => cb.checked);
+            
+            // If none are checked, check all of them
+            if (!anyChecked) {
+                contentTypeCheckboxes.forEach(cb => {
+                    cb.checked = true;
+                });
+            }
+        });
+    });
+    
     // Result item hover effect
     const resultItems = document.querySelectorAll('.result-item');
     resultItems.forEach(item => {
@@ -840,7 +874,12 @@
                 'X-Requested-With': 'XMLHttpRequest'
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             // Update results container with returned HTML
             if (data.html && resultsContainer) {
@@ -852,11 +891,24 @@
                 
                 // Re-attach event listeners to new content
                 attachResultListeners();
+                
+                // Update URL without reloading page
+                if (window.history && window.history.pushState) {
+                    window.history.pushState({path: url}, '', url);
+                }
+                
+                // Update active filters display
+                updateActiveFilters();
+            } else {
+                console.error('No HTML content in response data');
+                resultsContainer.classList.remove('search-in-progress');
+                resultsContainer.innerHTML = '<div class="alert alert-warning">No results found.</div>';
             }
         })
         .catch(error => {
             console.error('Error fetching search results:', error);
             resultsContainer.classList.remove('search-in-progress');
+            resultsContainer.innerHTML = '<div class="alert alert-danger">Error loading search results. Please try again.</div>';
         });
     }
     
@@ -886,6 +938,58 @@
         });
     }
     
+    // Helper function to update active filters display
+    function updateActiveFilters() {
+        const activeFilters = document.getElementById('active-filters');
+        if (!activeFilters) return;
+        
+        // Clear existing filters
+        activeFilters.innerHTML = '';
+        
+        // Get current URL parameters
+        const params = new URLSearchParams(window.location.search);
+        
+        // Add filter tags for each parameter
+        params.forEach((value, key) => {
+            if (key !== 'q' && key !== 'page' && value) {
+                const filterTag = document.createElement('span');
+                filterTag.className = 'filter-tag';
+                filterTag.dataset.filterKey = key;
+                
+                // Format the filter name
+                let filterName = key.replace(/_/g, ' ');
+                filterName = filterName.charAt(0).toUpperCase() + filterName.slice(1);
+                
+                filterTag.innerHTML = `
+                    <span class="filter-name">${filterName}</span>: ${value}
+                    <a href="#" class="text-decoration-none remove-filter" data-filter-key="${key}">
+                        <i class="fas fa-times"></i>
+                    </a>
+                `;
+                
+                activeFilters.appendChild(filterTag);
+            }
+        });
+        
+        // Add event listeners to remove buttons
+        activeFilters.querySelectorAll('.remove-filter').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                const filterKey = this.dataset.filterKey;
+                
+                // Get current URL parameters
+                const params = new URLSearchParams(window.location.search);
+                
+                // Remove the specific filter
+                params.delete(filterKey);
+                
+                // Redirect with updated parameters
+                window.location.href = '/search/?' + params.toString();
+            });
+        });
+    }
+    
     // Real-time filter application
     const filterInputs = filtersForm ? filtersForm.querySelectorAll('input, select') : [];
     filterInputs.forEach(input => {
@@ -896,18 +1000,38 @@
                 const currentUrl = new URL(window.location.href);
                 const params = new URLSearchParams(currentUrl.search);
                 
+                // Preserve the query parameter
+                if (searchInput.value.trim()) {
+                    params.set('q', searchInput.value.trim());
+                }
+                
+                // Remove any existing filter parameters
+                Array.from(params.keys()).forEach(key => {
+                    if (key !== 'q' && key !== 'page') {
+                        params.delete(key);
+                    }
+                });
+                
                 // Update with form data
                 const formData = new FormData(filtersForm);
+                
+                // Handle content_types checkboxes
+                let hasContentType = false;
+                document.querySelectorAll('input[name="content_types"]:checked').forEach(checkbox => {
+                    hasContentType = true;
+                    params.append('content_types', checkbox.value);
+                });
+                
+                // Add other form fields
                 for (const [key, value] of formData.entries()) {
-                    if (value) {
+                    if (key !== 'content_types' && value) {
                         params.set(key, value);
-                    } else {
-                        params.delete(key);
                     }
                 }
                 
                 // Perform AJAX search
                 const ajaxUrl = '/search/?' + params.toString();
+                console.log('AJAX Search URL:', ajaxUrl); // Debug log
                 ajaxSearch(ajaxUrl);
             }
         });
@@ -920,6 +1044,69 @@
             background-color: rgba(13, 110, 253, 0.1);
             border-left: 3px solid #0d6efd;
             transition: all 0.2s ease;
+        }
+        
+        .active-filter {
+            background-color: #e9f5ff;
+            border-left: 3px solid #0d6efd;
+        }
+        
+        .filter-tag {
+            display: inline-block;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            padding: 2px 8px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+        }
+        
+        .filter-tag .filter-name {
+            font-weight: 600;
+        }
+        
+        .filter-tag a {
+            margin-left: 5px;
+            color: #6c757d;
+        }
+        
+        .filter-tag a:hover {
+            color: #dc3545;
+        }
+        
+        .search-in-progress {
+            position: relative;
+        }
+        
+        .search-in-progress::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.7);
+            z-index: 1;
+        }
+        
+        .search-in-progress::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            z-index: 2;
+        }
+        
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
         }
     `;
     document.head.appendChild(style);
