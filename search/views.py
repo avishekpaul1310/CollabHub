@@ -27,30 +27,42 @@ def search_view(request):
     # Get saved searches for the user
     saved_searches = SavedSearch.objects.filter(user=request.user)
     
+    # Initialize variables
     results = []
     total_results = 0
+    work_items_count = 0  # Initialize here
+    messages_count = 0    # Initialize here
+    files_count = 0       # Initialize here
+    threads_count = 0     # Initialize here
+    channels_count = 0    # Initialize here
     
-    # Process search and filters when form is valid
-    if query or (form.is_valid() and any(form.cleaned_data.values())):
-        # Log this search
+    if query or form.is_valid() and any(form.cleaned_data.values()):
+        # Track search in history
         log_search(request, query, request.GET.dict(), 0)
         
-        # Get filter values from form
+        # Get filter parameters from form
         filters = {}
         if form.is_valid():
             filters = form.cleaned_data
-            
-        # Get content types to search or default to all
-        content_types = filters.get('content_types', [])
+        
+        # Perform the actual search with filters
+        work_items = search_work_items(request.user, query, filters)
+        messages = search_messages(request.user, query, filters)
+        threads = search_threads(request.user, query, filters)
+        files = search_files(request.user, query, filters)
+        channels = search_channels(request.user, query, filters)
+        
+        # Count all results by type
+        work_items_count = work_items.count()
+        messages_count = messages.count()
+        threads_count = threads.count()
+        files_count = files.count()
+        channels_count = channels.count()
+        
+        # Get content types to filter by (from form or default to all)
+        content_types = filters.get('content_types', ['work_item', 'message', 'thread', 'file', 'channel'])
         if not content_types:
             content_types = ['work_item', 'message', 'thread', 'file', 'channel']
-            
-        # Initialize counters
-        work_items_count = 0
-        messages_count = 0
-        files_count = 0
-        threads_count = 0
-        channels_count = 0
         
         # Perform filtered searches based on content types
         work_items = []
@@ -154,14 +166,14 @@ def search_view(request):
         # Sort results by relevance score and date
         results.sort(key=lambda x: (-x['relevance_score'], -x['date'].timestamp()))
         
-        # Update total counts
+        # Update total count
         total_results = len(results)
         
-        # Update search log
+        # Update the search log with the count
         update_search_log(request, query, request.GET.dict(), total_results)
     
     # Pagination
-    paginator = Paginator(results, 20)
+    paginator = Paginator(results, 20)  # 20 results per page
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
     
@@ -182,7 +194,7 @@ def search_view(request):
         'recent_searches': recent_searches,
     }
     
-    # AJAX response for filtering
+    # Return just the results for AJAX requests
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         result_html = render(request, 'search/partials/search_results.html', context).content.decode('utf-8')
         return JsonResponse({
