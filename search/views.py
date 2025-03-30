@@ -32,6 +32,8 @@ def search_view(request):
     work_items_count = 0
     messages_count = 0
     files_count = 0
+    threads_count = 0
+    channels_count = 0
     
     if query or form.is_valid() and any(form.cleaned_data.values()):
         # Track search in history
@@ -125,11 +127,13 @@ def search_view(request):
         # Sort results by relevance (highest first) and then date (newest first)
         results.sort(key=lambda x: (-x['relevance_score'], -x['date'].timestamp()))
         
-        # Update search log with result count
+        # Count all results by type
         total_results = len(results)
         work_items_count = sum(1 for r in results if r['type'] == 'work_item')
         messages_count = sum(1 for r in results if r['type'] == 'message')
         files_count = sum(1 for r in results if r['type'] == 'file')
+        threads_count = sum(1 for r in results if r['type'] == 'thread')
+        channels_count = sum(1 for r in results if r['type'] == 'channel')
         
         # Update the search log with the count
         update_search_log(request, query, request.GET.dict(), total_results)
@@ -150,6 +154,8 @@ def search_view(request):
         'work_items_count': work_items_count,
         'messages_count': messages_count,
         'files_count': files_count,
+        'threads_count': threads_count,
+        'channels_count': channels_count,
         'saved_searches': saved_searches,
         'recent_searches': recent_searches,
     }
@@ -163,6 +169,8 @@ def search_view(request):
             'work_items': work_items_count,
             'messages': messages_count,
             'files': files_count,
+            'threads': threads_count,
+            'channels': channels_count,
         })
     
     return render(request, 'search/search.html', context)
@@ -386,6 +394,16 @@ def search_files(user, query, filters=None):
                 Q(name__endswith='.xls') | Q(name__endswith='.xlsx') | 
                 Q(name__endswith='.csv') | Q(name__endswith='.ods')
             )
+        elif file_type == 'code':
+            # Match code formats
+            files = files.filter(
+                Q(name__endswith='.py') | Q(name__endswith='.js') | 
+                Q(name__endswith='.java') | Q(name__endswith='.c') |
+                Q(name__endswith='.cpp') | Q(name__endswith='.h') |
+                Q(name__endswith='.cs') | Q(name__endswith='.php') |
+                Q(name__endswith='.rb') | Q(name__endswith='.html') |
+                Q(name__endswith='.css') | Q(name__endswith='.ts')
+            )
     
     return files
 
@@ -418,8 +436,8 @@ def search_channels(user, query, filters=None):
         days = int(filters['recent'])
         channels = channels.filter(created_at__gte=timezone.now() - timedelta(days=days))
         
-    if filters.get('type'):
-        channels = channels.filter(type=filters['type'])
+    if filters.get('channel_type'):
+        channels = channels.filter(type=filters['channel_type'])
     
     return channels
 
