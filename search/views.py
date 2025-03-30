@@ -669,3 +669,32 @@ def clear_search_history(request):
             return JsonResponse({'status': 'success'})
     
     return redirect('search')
+
+@login_required
+def debug_database(request):
+    """Debug view to check database contents"""
+    work_items = WorkItem.objects.all()
+    work_item_types = WorkItem.objects.values_list('type', flat=True).distinct()
+    
+    result = {
+        'total_work_items': work_items.count(),
+        'work_item_types': list(work_item_types),
+    }
+    
+    # Also check user's items
+    user_work_items = WorkItem.objects.filter(
+        Q(owner=request.user) | Q(collaborators=request.user)
+    ).distinct()
+    
+    result['user_work_items'] = user_work_items.count()
+    
+    # Count by type
+    for item_type in work_item_types:
+        count = WorkItem.objects.filter(type=item_type).count()
+        result[f'type_{item_type}_count'] = count
+        
+        # Also count user's items by type
+        user_count = user_work_items.filter(type=item_type).count()
+        result[f'user_type_{item_type}_count'] = user_count
+    
+    return JsonResponse(result)
