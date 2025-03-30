@@ -1,3 +1,5 @@
+{% load search_filters %}
+
 {% if results %}
     <div class="list-group list-group-flush">
         {% for result in results %}
@@ -33,7 +35,9 @@
                             {% if result.type == 'file' %}
                                 <span class="ms-3">
                                     <i class="fas fa-file-alt fa-sm"></i>
-                                    {{ result.object.name|split:'.'|last|upper }}
+                                    {% with ext=result.object.name|split:'.'|last %}
+                                        {{ ext|upper }}
+                                    {% endwith %}
                                 </span>
                             {% endif %}
                         </div>
