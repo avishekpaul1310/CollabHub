@@ -30,11 +30,16 @@ def search_view(request):
     # Initialize variables
     results = []
     total_results = 0
-    work_items_count = 0  # Initialize here
-    messages_count = 0    # Initialize here
-    files_count = 0       # Initialize here
-    threads_count = 0     # Initialize here
-    channels_count = 0    # Initialize here
+    work_items_count = 0
+    messages_count = 0
+    files_count = 0
+    threads_count = 0
+    channels_count = 0
+    work_items = []
+    messages = []
+    threads = []
+    files = []
+    channels = []
     
     if query or form.is_valid() and any(form.cleaned_data.values()):
         # Track search in history
@@ -45,32 +50,12 @@ def search_view(request):
         if form.is_valid():
             filters = form.cleaned_data
         
-        # Perform the actual search with filters
-        work_items = search_work_items(request.user, query, filters)
-        messages = search_messages(request.user, query, filters)
-        threads = search_threads(request.user, query, filters)
-        files = search_files(request.user, query, filters)
-        channels = search_channels(request.user, query, filters)
-        
-        # Count all results by type
-        work_items_count = work_items.count()
-        messages_count = messages.count()
-        threads_count = threads.count()
-        files_count = files.count()
-        channels_count = channels.count()
-        
         # Get content types to filter by (from form or default to all)
         content_types = filters.get('content_types', ['work_item', 'message', 'thread', 'file', 'channel'])
         if not content_types:
             content_types = ['work_item', 'message', 'thread', 'file', 'channel']
         
         # Perform filtered searches based on content types
-        work_items = []
-        messages = []
-        threads = []
-        files = []
-        channels = []
-        
         if 'work_item' in content_types:
             work_items = search_work_items(request.user, query, filters)
             work_items_count = work_items.count()
