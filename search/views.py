@@ -207,10 +207,15 @@ def search_work_items(user, query, filters=None):
     if filters is None:
         filters = {}
         
+    # Debug line
+    print("Searching work items with filters:", filters)
+    
     # Base query: user must be owner or collaborator
     items = WorkItem.objects.filter(
         Q(owner=user) | Q(collaborators=user)
     ).distinct()
+    
+    print("Initial query count:", items.count())  # Debug
     
     # Apply text search if query provided
     if query:
@@ -218,10 +223,13 @@ def search_work_items(user, query, filters=None):
             Q(title__icontains=query) | 
             Q(description__icontains=query)
         )
+        print("After query filter count:", items.count())  # Debug
     
     # Apply filters
     if filters.get('type'):
+        print(f"Filtering by type: {filters['type']}")  # Debug
         items = items.filter(type=filters['type'])
+        print("After type filter count:", items.count())  # Debug
         
     if filters.get('owner'):
         # Look up owner by username
