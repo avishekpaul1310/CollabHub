@@ -224,7 +224,7 @@ def search_view(request):
             'channels': channels_count,
         })
     
-    print("Rendering full search template")
+    print(f"Rendering template with {len(results)} results, showing first 3: {[result.get('title', 'No title') for result in results[:3]]}")
     return render(request, 'search/search.html', context)
 
 def search_work_items(user, query, filters=None):
