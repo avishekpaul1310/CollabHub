@@ -1,0 +1,109 @@
+{% if results %}
+    <div class="list-group list-group-flush">
+        {% for result in results %}
+            <div class="result-item list-group-item list-group-item-action" data-type="{{ result.type }}">
+                <div class="d-flex w-100 justify-content-between align-items-start">
+                    <a href="{{ result.url }}" class="flex-grow-1 text-decoration-none text-dark">
+                        <h5 class="mb-1">
+                            {% if result.type == 'work_item' %}
+                                <i class="fas fa-clipboard-list text-primary me-2"></i>
+                            {% elif result.type == 'message' %}
+                                <i class="fas fa-comment text-success me-2"></i>
+                            {% elif result.type == 'thread' %}
+                                <i class="fas fa-comments text-info me-2"></i>
+                            {% elif result.type == 'file' %}
+                                <i class="fas fa-file text-warning me-2"></i>
+                            {% elif result.type == 'channel' %}
+                                <i class="fas fa-clock text-primary me-2"></i>
+                            {% endif %}
+                            {{ result.title }}
+                        </h5>
+                        <p class="mb-1">{{ result.preview }}</p>
+                        <div class="result-meta mt-1">
+                            <span><i class="fas fa-user fa-sm"></i> {{ result.owner.username }}</span>
+                            <span class="ms-3"><i class="fas fa-calendar-alt fa-sm"></i> {{ result.date|date:"M d, Y" }}</span>
+                            
+                            {% if result.type == 'work_item' %}
+                                <span class="ms-3">
+                                    <i class="fas fa-tag fa-sm"></i> 
+                                    {{ result.object.get_type_display }}
+                                </span>
+                            {% endif %}
+                            
+                            {% if result.type == 'file' %}
+                                <span class="ms-3">
+                                    <i class="fas fa-file-alt fa-sm"></i>
+                                    {{ result.object.name|split:'.'|last|upper }}
+                                </span>
+                            {% endif %}
+                        </div>
+                    </a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if results.has_other_pages %}
+        <div class="d-flex justify-content-center my-4">
+            <ul class="pagination">
+                {% if results.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page=1">&laquo; First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ results.previous_page_number }}">&lsaquo; Previous</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#">&laquo; First</a>
+                    </li>
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#">&lsaquo; Previous</a>
+                    </li>
+                {% endif %}
+                
+                {% for i in results.paginator.page_range %}
+                    {% if results.number == i %}
+                        <li class="page-item active">
+                            <a class="page-link" href="#">{{ i }}</a>
+                        </li>
+                    {% elif i > results.number|add:'-3' and i < results.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ i }}">{{ i }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if results.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ results.next_page_number }}">Next &rsaquo;</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ results.paginator.num_pages }}">Last &raquo;</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#">Next &rsaquo;</a>
+                    </li>
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#">Last &raquo;</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+    {% endif %}
+{% else %}
+    <div class="text-center py-5">
+        <p class="text-muted">No results found for "{{ query }}"</p>
+        <div class="mt-3">
+            <h5>Suggestions:</h5>
+            <ul class="text-start mx-auto" style="max-width: 400px;">
+                <li>Check your spelling</li>
+                <li>Try different keywords</li>
+                <li>Try more general terms</li>
+                <li>Try fewer or no filters</li>
+            </ul>
+        </div>
+    </div>
+{% endif %}
