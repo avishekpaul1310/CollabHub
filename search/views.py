@@ -219,7 +219,14 @@ def search_work_items(user, query, filters=None):
         items = items.filter(type=filters['type'])
         
     if filters.get('owner'):
-        items = items.filter(owner__username=filters['owner'])
+        # Look up owner by username
+        owner_filter = filters['owner']
+        items = items.filter(owner__username__icontains=owner_filter)
+        
+    if filters.get('user'):
+        # Check if created by this user (owner)
+        user_filter = filters['user']
+        items = items.filter(owner__username__icontains=user_filter)
         
     if filters.get('date_from'):
         items = items.filter(created_at__gte=filters['date_from'])
