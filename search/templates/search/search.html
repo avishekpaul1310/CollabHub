@@ -595,70 +595,82 @@
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('search-input');
-    const searchForm = document.getElementById('search-form');
-    const filtersForm = document.getElementById('search-filters-form');
-    const activeFilters = document.getElementById('active-filters');
-    const saveSearchBtn = document.getElementById('save-search-button');
-    const clearFiltersBtn = document.getElementById('clear-filters');
-    const resultsContainer = document.getElementById('search-results-container');
-    
-    // Set focus to search input on page load (if not on mobile)
-    if (window.innerWidth > 768) {
-        searchInput.focus();
-    }
-    
-    // Handle form submission
-    searchForm.addEventListener('submit', function(e) {
-        if (!searchInput.value.trim()) {
-            e.preventDefault();
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('search-input');
+        const searchForm = document.getElementById('search-form');
+        const filtersForm = document.getElementById('search-filters-form');
+        const activeFilters = document.getElementById('active-filters');
+        const saveSearchBtn = document.getElementById('save-search-button');
+        const clearFiltersBtn = document.getElementById('clear-filters');
+        const resultsContainer = document.getElementById('search-results-container');
+
+        // Set focus to search input on page load (if not on mobile)
+        if (window.innerWidth > 768) {
             searchInput.focus();
         }
-    });
-    
-    // Apply filters when filter form is submitted
-    filtersForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Get current search query
-        const query = searchInput.value.trim();
-        
-        // Build query parameters from both forms
-        const params = new URLSearchParams();
-        if (query) {
-            params.append('q', query);
-        }
-        
-        // Add filter parameters
-        const formData = new FormData(filtersForm);
-        
-        // Handle checkboxes for content types properly
-        const contentTypes = [];
-        formData.getAll('content_types').forEach(value => {
-            if (value) contentTypes.push(value);
-        });
-        
-        // If at least one content type is selected, add them
-        if (contentTypes.length > 0) {
-            // Remove existing entries
-            formData.delete('content_types');
-            // Add each content type individually to params
-            contentTypes.forEach(type => {
-                params.append('content_types', type);
-            });
-        }
-        
-        // Add other form fields
-        for (const [key, value] of formData.entries()) {
-            if (key !== 'content_types' && value) {
-                params.append(key, value);
+
+        // Handle form submission
+        searchForm.addEventListener('submit', function (e) {
+            if (!searchInput.value.trim()) {
+                e.preventDefault();
+                searchInput.focus();
             }
-        }
-        
-        // Redirect to search with the combined parameters
-        window.location.href = '/search/?' + params.toString();
-    });
+        });
+
+        // Apply filters when filter form is submitted
+        filtersForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            // Get current search query
+            const query = searchInput.value.trim();
+
+            // Build query parameters from both forms
+            const params = new URLSearchParams();
+            if (query) {
+                params.append('q', query);
+            }
+
+            // Add filter parameters
+            const formData = new FormData(filtersForm);
+
+            // Debug - log all form data
+            console.log("Form data:");
+            for (const [key, value] of formData.entries()) {
+                console.log(key, value);
+            }
+
+            // Handle checkboxes for content types properly
+            const contentTypes = [];
+            formData.getAll('content_types').forEach(value => {
+                if (value) contentTypes.push(value);
+            });
+
+            console.log("Content types selected:", contentTypes);
+
+            // If at least one content type is selected, add them
+            if (contentTypes.length > 0) {
+                // Remove existing entries
+                formData.delete('content_types');
+                // Add each content type individually to params
+                contentTypes.forEach(type => {
+                    params.append('content_types', type);
+                });
+            }
+
+            // Add other form fields
+            for (const [key, value] of formData.entries()) {
+                if (key !== 'content_types' && value) {
+                    params.append(key, value);
+                }
+            }
+
+            // Debug - log final URL
+            const finalUrl = '/search/?' + params.toString();
+            console.log("Submitting search with URL:", finalUrl);
+
+            // Redirect to search with the combined parameters
+            window.location.href = finalUrl;
+        });
     
     // Clear filters
     if (clearFiltersBtn) {
