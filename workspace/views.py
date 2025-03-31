@@ -1218,3 +1218,17 @@ def get_work_analytics(request):
         })
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@login_required
+def work_life_analytics(request):
+    """View for the Work-Life Analytics Dashboard"""
+    # Set default date range (last 7 days)
+    end_date = timezone.now().date()
+    start_date = end_date - datetime.timedelta(days=7)
+    
+    context = {
+        'default_start_date': start_date,
+        'default_end_date': end_date,
+    }
+    
+    return render(request, 'workspace/work_life_analytics.html', context)
