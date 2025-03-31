@@ -248,9 +248,9 @@
                     <li class="nav-item dropdown">
                         <a class="nav-link" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-bell"></i>
-                            {% if unread_notifications_count > 0 %}
-                                <span class="badge bg-danger">{{ unread_notifications_count }}</span>
-                            {% endif %}
+                            <span id="notification-badge" class="badge bg-danger {% if not unread_notifications_count %}d-none{% endif %}">
+                                {{ unread_notifications_count }}
+                            </span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationDropdown">
                             {% with recent_notifications=request.user.notifications.all|slice:":5" %}
@@ -273,7 +273,7 @@
                                 </a></li>
                             <li><a class="dropdown-item text-center" href="{% url 'notifications_list' %}">View all notifications</a></li>
                         
-                            </li>
+                            
                             {% else %}
                             <li><a class="dropdown-item" href="#">No notifications</a></li>
                             {% endif %}
