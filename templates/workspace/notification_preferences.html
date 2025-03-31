@@ -78,58 +78,7 @@
                             </div>
                             <div class="form-text">Select your working days</div>
                         </div>
-                    
-                        <!-- Add this section to templates/workspace/notification_preferences.html -->
-                        <!-- Add this after the Work Hours Settings section -->
-                    
-                        <div class="mb-4">
-                            <h5>Asynchronous Communication Settings</h5>
-                    
-                            <div class="alert alert-info mb-3">
-                                <div class="d-flex">
-                                    <div class="me-3">
-                                        <i class="fas fa-lightbulb fa-2x"></i>
-                                    </div>
-                                    <div>
-                                        <p class="mb-0">
-                                            Asynchronous communication means not everyone needs to be online at the same time.
-                                            These settings help reduce the pressure of immediate responses and create a more
-                                            thoughtful communication environment.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                    
-                            <div class="form-check mb-3">
-                                {{ form.show_online_status.errors }}
-                                <input type="checkbox" name="{{ form.show_online_status.name }}"
-                                    id="{{ form.show_online_status.id_for_label }}"
-                                    class="form-check-input {% if form.show_online_status.errors %}is-invalid{% endif %}" 
-                                    {% if form.show_online_status.value %}checked{% endif %}>
-                                <label for="{{ form.show_online_status.id_for_label }}" class="form-check-label">
-                                    Show online status to others
-                                </label>
-                                <div class="form-text">
-                                    When enabled, other users can see when you're online. Consider disabling this to reduce
-                                    pressure for immediate responses.
-                                </div>
-                            </div>
-                    
-                            <div class="form-check mb-3">
-                                {{ form.share_read_receipts.errors }}
-                                <input type="checkbox" name="{{ form.share_read_receipts.name }}"
-                                       id="{{ form.share_read_receipts.id_for_label }}"
-                                       class="form-check-input {% if form.share_read_receipts.errors %}is-invalid{% endif %}"
-                                       {% if form.share_read_receipts.value %}checked{% endif %}>
-                                <label for="{{ form.share_read_receipts.id_for_label }}" class="form-check-label">
-                                    Share read receipts
-                                </label>
-                                <div class="form-text">
-                                    When enabled, message authors can see when you've read their messages. This helps with
-                                    communication clarity, but can sometimes create pressure to respond immediately.
-                                </div>
-                            </div>
-                        </div>
+                        
                         <div class="row">
                             <div class="col-md-6">
                                 <label for="{{ form.work_start_time.id_for_label }}" class="form-label">Work Start Time</label>
@@ -144,6 +93,152 @@
                                 <input type="time" name="{{ form.work_end_time.name }}" id="{{ form.work_end_time.id_for_label }}"
                                     class="form-control {% if form.work_end_time.errors %}is-invalid{% endif %}"
                                     value="{{ form.work_end_time.value|default:'' }}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h5>Work-Life Balance Settings</h5>
+                        
+                        <div class="alert alert-info mb-3">
+                            <div class="d-flex">
+                                <div class="me-3">
+                                    <i class="fas fa-balance-scale fa-2x"></i>
+                                </div>
+                                <div>
+                                    <p class="mb-0">
+                                        These settings help you maintain a healthy work-life balance and set
+                                        boundaries with your collaborators.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            {{ form.share_working_hours.errors }}
+                            <input type="checkbox" name="{{ form.share_working_hours.name }}"
+                                id="{{ form.share_working_hours.id_for_label }}"
+                                class="form-check-input {% if form.share_working_hours.errors %}is-invalid{% endif %}" 
+                                {% if form.share_working_hours.value %}checked{% endif %}>
+                            <label for="{{ form.share_working_hours.id_for_label }}" class="form-check-label">
+                                Share your working hours with others
+                            </label>
+                            <div class="form-text">
+                                When enabled, your working hours will be visible to your collaborators, helping them
+                                understand when they can expect responses from you.
+                            </div>
+                        </div>
+                        
+                        <hr class="my-3">
+                        <h6>Break Reminders</h6>
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.break_frequency.id_for_label }}" class="form-label">Break Reminder Frequency (minutes)</label>
+                            {{ form.break_frequency.errors }}
+                            <input type="number" name="{{ form.break_frequency.name }}" id="{{ form.break_frequency.id_for_label }}" 
+                                class="form-control {% if form.break_frequency.errors %}is-invalid{% endif %}"
+                                value="{{ form.break_frequency.value|default:'60' }}" min="15" max="120">
+                            <div class="form-text">How often should we remind you to take a short break?</div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="{{ form.lunch_break_start.id_for_label }}" class="form-label">Lunch Break Start Time</label>
+                                {{ form.lunch_break_start.errors }}
+                                <input type="time" name="{{ form.lunch_break_start.name }}" id="{{ form.lunch_break_start.id_for_label }}" 
+                                    class="form-control {% if form.lunch_break_start.errors %}is-invalid{% endif %}"
+                                    value="{{ form.lunch_break_start.value|time:'H:i'|default:'' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.lunch_break_duration.id_for_label }}" class="form-label">Lunch Break Duration (minutes)</label>
+                                {{ form.lunch_break_duration.errors }}
+                                <input type="number" name="{{ form.lunch_break_duration.name }}" id="{{ form.lunch_break_duration.id_for_label }}" 
+                                    class="form-control {% if form.lunch_break_duration.errors %}is-invalid{% endif %}"
+                                    value="{{ form.lunch_break_duration.value|default:'60' }}" min="15" max="120">
+                            </div>
+                        </div>
+                        
+                        <hr class="my-3">
+                        <h6>Away From Keyboard Settings</h6>
+                        
+                        <div class="form-check mb-3">
+                            {{ form.away_mode.errors }}
+                            <input type="checkbox" name="{{ form.away_mode.name }}"
+                                id="{{ form.away_mode.id_for_label }}"
+                                class="form-check-input {% if form.away_mode.errors %}is-invalid{% endif %}" 
+                                {% if form.away_mode.value %}checked{% endif %}>
+                            <label for="{{ form.away_mode.id_for_label }}" class="form-check-label">
+                                Enable "Away From Keyboard" (AFK) mode
+                            </label>
+                            <div class="form-text">
+                                When enabled, your status will automatically be set to "away" after the specified period of inactivity.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.auto_away_after.id_for_label }}" class="form-label">Set as away after inactivity (minutes)</label>
+                            {{ form.auto_away_after.errors }}
+                            <input type="number" name="{{ form.auto_away_after.name }}" id="{{ form.auto_away_after.id_for_label }}" 
+                                class="form-control {% if form.auto_away_after.errors %}is-invalid{% endif %}"
+                                value="{{ form.auto_away_after.value|default:'30' }}" min="5" max="120">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.away_message.id_for_label }}" class="form-label">Away Message</label>
+                            {{ form.away_message.errors }}
+                            <input type="text" name="{{ form.away_message.name }}" id="{{ form.away_message.id_for_label }}" 
+                                class="form-control {% if form.away_message.errors %}is-invalid{% endif %}"
+                                value="{{ form.away_message.value|default:'' }}" 
+                                placeholder="Away from keyboard, will respond later...">
+                            <div class="form-text">This message will be displayed to others when you're away.</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h5>Asynchronous Communication Settings</h5>
+                
+                        <div class="alert alert-info mb-3">
+                            <div class="d-flex">
+                                <div class="me-3">
+                                    <i class="fas fa-lightbulb fa-2x"></i>
+                                </div>
+                                <div>
+                                    <p class="mb-0">
+                                        Asynchronous communication means not everyone needs to be online at the same time.
+                                        These settings help reduce the pressure of immediate responses and create a more
+                                        thoughtful communication environment.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                
+                        <div class="form-check mb-3">
+                            {{ form.show_online_status.errors }}
+                            <input type="checkbox" name="{{ form.show_online_status.name }}"
+                                id="{{ form.show_online_status.id_for_label }}"
+                                class="form-check-input {% if form.show_online_status.errors %}is-invalid{% endif %}" 
+                                {% if form.show_online_status.value %}checked{% endif %}>
+                            <label for="{{ form.show_online_status.id_for_label }}" class="form-check-label">
+                                Show online status to others
+                            </label>
+                            <div class="form-text">
+                                When enabled, other users can see when you're online. Consider disabling this to reduce
+                                pressure for immediate responses.
+                            </div>
+                        </div>
+                
+                        <div class="form-check mb-3">
+                            {{ form.share_read_receipts.errors }}
+                            <input type="checkbox" name="{{ form.share_read_receipts.name }}"
+                                   id="{{ form.share_read_receipts.id_for_label }}"
+                                   class="form-check-input {% if form.share_read_receipts.errors %}is-invalid{% endif %}"
+                                   {% if form.share_read_receipts.value %}checked{% endif %}>
+                            <label for="{{ form.share_read_receipts.id_for_label }}" class="form-check-label">
+                                Share read receipts
+                            </label>
+                            <div class="form-text">
+                                When enabled, message authors can see when you've read their messages. This helps with
+                                communication clarity, but can sometimes create pressure to respond immediately.
                             </div>
                         </div>
                     </div>
