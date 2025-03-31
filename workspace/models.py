@@ -106,6 +106,44 @@ class NotificationPreference(models.Model):
     help_text="Share read receipts with message authors"
     )
     
+    # Work-Life Balance settings
+    share_working_hours = models.BooleanField(
+            default=True,
+            help_text="Allow others to see your working hours"
+        )
+        
+    away_mode = models.BooleanField(
+            default=False,
+            help_text="Enable away from keyboard mode"
+        )
+        
+    away_message = models.CharField(
+            max_length=255, 
+            blank=True,
+            help_text="Message to show when you're away"
+        )
+        
+    auto_away_after = models.IntegerField(
+            default=30,
+            help_text="Set away status after inactive for this many minutes"
+        )
+        
+    break_frequency = models.IntegerField(
+            default=60,
+            help_text="Reminder frequency in minutes to take breaks"
+        )
+        
+    lunch_break_start = models.TimeField(
+            null=True, 
+            blank=True,
+            help_text="Start time of your lunch break"
+        )
+        
+    lunch_break_duration = models.IntegerField(
+            default=60,
+            help_text="Duration of lunch break in minutes"
+        )
+    
     # Channel preferences
     muted_channels = models.ManyToManyField(WorkItem, related_name='muted_by_users', blank=True)
     
