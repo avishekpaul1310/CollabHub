@@ -56,4 +56,5 @@ urlpatterns = [
     path('api/user/<int:user_id>/status/', views.get_user_status, name='get_user_status'),
     path('api/work_session/log/', views.log_work_session, name='log_work_session'),
     path('api/work_analytics/', views.get_work_analytics, name='get_work_analytics'),
+    path('work-life-analytics/', views.work_life_analytics, name='work_life_analytics'),
 ]
