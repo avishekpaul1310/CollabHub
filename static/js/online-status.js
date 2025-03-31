@@ -1,4 +1,6 @@
-// Online status tracking with Work-Life Balance features
+// Enhanced online-status.js with Work-Life Balance features
+// This updates your existing static/js/online-status.js file
+
 let onlineStatusEnabled = false;
 let statusUpdateInterval = null;
 let afkModeEnabled = false;
@@ -19,8 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function fetchUserPreferences() {
-    // First get the basic online status preference
-    fetch('/api/user/preferences/online-status/')
+    fetch('/api/user/work_life_balance_preferences/')
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
@@ -28,60 +29,38 @@ function fetchUserPreferences() {
             return response.json();
         })
         .then(data => {
+            // Update settings from preferences
             onlineStatusEnabled = data.show_online_status;
+            afkModeEnabled = data.away_mode;
+            afkTimeout = data.auto_away_after * 60 * 1000; // Convert minutes to milliseconds
+            workingHoursVisible = data.share_working_hours;
+            awayMessage = data.away_message || awayMessage;
+            breakFrequency = data.break_frequency * 60 * 1000; // Convert minutes to milliseconds
             
-            // Then fetch additional work-life balance settings if available
-            return fetch('/api/user/work_life_balance_preferences/')
-                .then(response => {
-                    if (!response.ok) {
-                        // Work-life balance API might not exist yet, handle gracefully
-                        if (onlineStatusEnabled) {
-                            setupOnlineTracking();
-                            console.log('Online status tracking enabled (basic mode)');
-                        }
-                        return null;
-                    }
-                    return response.json();
-                })
-                .then(workLifeData => {
-                    if (workLifeData) {
-                        // Update settings from preferences
-                        onlineStatusEnabled = workLifeData.show_online_status || onlineStatusEnabled;
-                        afkModeEnabled = workLifeData.away_mode;
-                        afkTimeout = workLifeData.auto_away_after * 60 * 1000; // Convert minutes to milliseconds
-                        workingHoursVisible = workLifeData.share_working_hours;
-                        awayMessage = workLifeData.away_message || awayMessage;
-                        breakFrequency = workLifeData.break_frequency * 60 * 1000; // Convert minutes to milliseconds
-                        
-                        if (onlineStatusEnabled) {
-                            setupOnlineTracking();
-                            console.log('Online status tracking enabled');
-                        }
-                        
-                        if (afkModeEnabled) {
-                            setupAfkTracking();
-                            console.log('AFK mode enabled');
-                        }
+            if (onlineStatusEnabled) {
+                setupOnlineTracking();
+                console.log('Online status tracking enabled');
+            }
+            
+            if (afkModeEnabled) {
+                setupAfkTracking();
+                console.log('AFK mode enabled');
+            }
 
-                        // Set up break reminders if enabled
-                        if (workLifeData.break_frequency > 0) {
-                            setupBreakReminders(workLifeData.break_frequency);
-                            console.log('Break reminders enabled every', workLifeData.break_frequency, 'minutes');
-                        }
-                        
-                        // Check if current time is within work hours
-                        if (workingHoursVisible) {
-                            checkWorkingHours();
-                        }
-                    } else if (onlineStatusEnabled) {
-                        setupOnlineTracking();
-                        console.log('Online status tracking enabled (basic mode)');
-                    }
-                });
+            // Set up break reminders if enabled
+            if (data.break_frequency > 0) {
+                setupBreakReminders(data.break_frequency);
+                console.log('Break reminders enabled every', data.break_frequency, 'minutes');
+            }
+            
+            // Check if current time is within work hours
+            if (workingHoursVisible) {
+                checkWorkingHours();
+            }
         })
         .catch(error => {
-            console.error('Error fetching user preferences:', error);
-            // Still enable basic online status if we know it's enabled
+            console.error('Error fetching work-life balance preferences:', error);
+            // Still enable basic online status
             if (onlineStatusEnabled) {
                 setupOnlineTracking();
             }
