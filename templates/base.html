@@ -16,6 +16,18 @@
     <meta name="user-id" content="{{ user.id }}">
     <meta name="username" content="{{ user.username }}">
     {% endif %}
+    {% if user.is_authenticated %}
+    {% with prefs=user.notification_preferences %}
+    <meta name="work-days" content="{{ prefs.work_days|default:'12345' }}">
+    <meta name="work-start-time" content="{{ prefs.work_start_time|time:'H:i'|default:'09:00' }}">
+    <meta name="work-end-time" content="{{ prefs.work_end_time|time:'H:i'|default:'17:00' }}">
+    <meta name="lunch-break-start" content="{{ prefs.lunch_break_start|time:'H:i'|default:'' }}">
+    <meta name="lunch-break-duration" content="{{ prefs.lunch_break_duration|default:'60' }}">
+    <meta name="break-frequency" content="{{ prefs.break_frequency|default:'60' }}">
+    <meta name="away-mode-enabled" content="{{ prefs.away_mode|yesno:'true,false' }}">
+    <meta name="auto-away-after" content="{{ prefs.auto_away_after|default:'30' }}">
+    {% endwith %}
+{% endif %}
     <style>
         :root {
             --primary-color: #4a6fdc;
