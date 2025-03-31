@@ -1,17 +1,25 @@
-// Online status tracking
+// Online status tracking with Work-Life Balance features
 let onlineStatusEnabled = false;
 let statusUpdateInterval = null;
-const ACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+let afkModeEnabled = false;
+let afkTimeout = 30 * 60 * 1000; // Default 30 minutes
+let afkTimeoutId = null;
+let breakReminderInterval = null;
+let breakFrequency = 60 * 60 * 1000; // Default 60 minutes
+let workingHoursVisible = true;
+let awayMessage = "Away from keyboard, will respond later...";
+let userStatus = 'active';
 
 document.addEventListener('DOMContentLoaded', function() {
     // Only run if user is authenticated
     if (!document.querySelector('meta[name="user-authenticated"]')) return;
     
-    // Check user preferences first before enabling tracking
-    checkOnlineStatusPreference();
+    // Fetch user preferences first before enabling tracking
+    fetchUserPreferences();
 });
 
-function checkOnlineStatusPreference() {
+function fetchUserPreferences() {
+    // First get the basic online status preference
     fetch('/api/user/preferences/online-status/')
         .then(response => {
             if (!response.ok) {
@@ -22,49 +30,83 @@ function checkOnlineStatusPreference() {
         .then(data => {
             onlineStatusEnabled = data.show_online_status;
             
-            if (onlineStatusEnabled) {
-                setupOnlineTracking();
-                console.log('Online status tracking enabled');
-            } else {
-                console.log('Online status tracking disabled by user preference');
-            }
+            // Then fetch additional work-life balance settings if available
+            return fetch('/api/user/work_life_balance_preferences/')
+                .then(response => {
+                    if (!response.ok) {
+                        // Work-life balance API might not exist yet, handle gracefully
+                        if (onlineStatusEnabled) {
+                            setupOnlineTracking();
+                            console.log('Online status tracking enabled (basic mode)');
+                        }
+                        return null;
+                    }
+                    return response.json();
+                })
+                .then(workLifeData => {
+                    if (workLifeData) {
+                        // Update settings from preferences
+                        onlineStatusEnabled = workLifeData.show_online_status || onlineStatusEnabled;
+                        afkModeEnabled = workLifeData.away_mode;
+                        afkTimeout = workLifeData.auto_away_after * 60 * 1000; // Convert minutes to milliseconds
+                        workingHoursVisible = workLifeData.share_working_hours;
+                        awayMessage = workLifeData.away_message || awayMessage;
+                        breakFrequency = workLifeData.break_frequency * 60 * 1000; // Convert minutes to milliseconds
+                        
+                        if (onlineStatusEnabled) {
+                            setupOnlineTracking();
+                            console.log('Online status tracking enabled');
+                        }
+                        
+                        if (afkModeEnabled) {
+                            setupAfkTracking();
+                            console.log('AFK mode enabled');
+                        }
+
+                        // Set up break reminders if enabled
+                        if (workLifeData.break_frequency > 0) {
+                            setupBreakReminders(workLifeData.break_frequency);
+                            console.log('Break reminders enabled every', workLifeData.break_frequency, 'minutes');
+                        }
+                        
+                        // Check if current time is within work hours
+                        if (workingHoursVisible) {
+                            checkWorkingHours();
+                        }
+                    } else if (onlineStatusEnabled) {
+                        setupOnlineTracking();
+                        console.log('Online status tracking enabled (basic mode)');
+                    }
+                });
         })
         .catch(error => {
-            console.error('Error checking online status preference:', error);
+            console.error('Error fetching user preferences:', error);
+            // Still enable basic online status if we know it's enabled
+            if (onlineStatusEnabled) {
+                setupOnlineTracking();
+            }
         });
 }
 
 function setupOnlineTracking() {
     // Set up activity tracking
     let lastActivity = new Date();
-    let currentStatus = 'active';
-    let activityTimeout;
     
     // Update last activity timestamp on user actions
     const updateActivity = () => {
         lastActivity = new Date();
         
-        // If status was away, set back to active
-        if (currentStatus !== 'active') {
-            currentStatus = 'active';
+        // If status was away, set back to active if we're not in AFK mode
+        if (userStatus !== 'active' && (!afkModeEnabled || userStatus !== 'afk')) {
+            userStatus = 'active';
             updateStatusOnServer('active');
         }
         
-        // Clear any existing timeout
-        if (activityTimeout) {
-            clearTimeout(activityTimeout);
+        // Reset AFK timeout if enabled
+        if (afkModeEnabled && afkTimeoutId) {
+            clearTimeout(afkTimeoutId);
+            startAfkTimer();
         }
-        
-        // Set timeout to check inactivity after defined timeout period
-        activityTimeout = setTimeout(() => {
-            // If no activity for timeout period, set to away
-            const inactiveTime = (new Date() - lastActivity);
-            
-            if (inactiveTime >= ACTIVITY_TIMEOUT) {
-                currentStatus = 'away';
-                updateStatusOnServer('away');
-            }
-        }, ACTIVITY_TIMEOUT);
     };
     
     // Track user activity
@@ -80,7 +122,7 @@ function setupOnlineTracking() {
         if (document.visibilityState === 'visible') {
             updateActivity();
         } else {
-            currentStatus = 'away';
+            userStatus = 'away';
             updateStatusOnServer('away');
         }
     });
@@ -101,10 +143,48 @@ function setupOnlineTracking() {
     startStatusUpdateInterval();
 }
 
-function updateStatusOnServer(status) {
-    if (!onlineStatusEnabled) return;
+function setupAfkTracking() {
+    // Start AFK timer
+    startAfkTimer();
+    
+    // Display indicator in UI
+    addAfkIndicator();
+}
+
+function startAfkTimer() {
+    // Clear any existing timeout
+    if (afkTimeoutId) {
+        clearTimeout(afkTimeoutId);
+    }
+    
+    // Set new timeout
+    afkTimeoutId = setTimeout(() => {
+        // Set status to AFK
+        userStatus = 'afk';
+        updateStatusOnServer('afk', awayMessage);
+        
+        // Update UI indicator
+        updateAfkIndicator(true);
+        
+        // Show notification to user
+        if (Notification.permission === 'granted') {
+            new Notification('Away From Keyboard', {
+                body: 'Your status has been set to away. Click to set as active again.',
+                icon: '/static/img/logo.png'
+            });
+        }
+    }, afkTimeout);
+}
+
+function updateStatusOnServer(status, message = null) {
+    if (!onlineStatusEnabled && status !== 'offline') return;
     
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    
+    const payload = { status: status };
+    if (message) {
+        payload.message = message;
+    }
     
     fetch('/api/user/online-status/', {
         method: 'POST',
@@ -112,7 +192,7 @@ function updateStatusOnServer(status) {
             'Content-Type': 'application/json',
             'X-CSRFToken': csrfToken
         },
-        body: JSON.stringify({ status: status })
+        body: JSON.stringify(payload)
     })
     .then(response => {
         if (!response.ok) {
@@ -137,7 +217,265 @@ function startStatusUpdateInterval() {
     // Update status every 5 minutes to keep it active
     statusUpdateInterval = setInterval(() => {
         if (document.visibilityState === 'visible' && onlineStatusEnabled) {
-            updateStatusOnServer('active');
+            // Don't change afk status through this interval
+            if (userStatus !== 'afk') {
+                updateStatusOnServer('active');
+            }
         }
     }, 5 * 60 * 1000);
 }
+
+function addAfkIndicator() {
+    // Create an indicator in the navbar if it doesn't exist
+    if (!document.getElementById('afk-indicator')) {
+        const navbar = document.querySelector('.navbar-nav');
+        if (navbar) {
+            const indicator = document.createElement('li');
+            indicator.className = 'nav-item';
+            indicator.id = 'afk-indicator';
+            indicator.innerHTML = `
+                <span class="nav-link">
+                    <i class="fas fa-user-clock"></i>
+                    <span class="afk-status">AFK: Off</span>
+                </span>
+            `;
+            navbar.appendChild(indicator);
+            
+            // Add click handler to manually toggle AFK
+            indicator.addEventListener('click', toggleAfkStatus);
+        }
+    }
+}
+
+function updateAfkIndicator(isAfk) {
+    const indicator = document.getElementById('afk-indicator');
+    if (indicator) {
+        const statusText = indicator.querySelector('.afk-status');
+        if (statusText) {
+            statusText.textContent = isAfk ? 'AFK: On' : 'AFK: Off';
+        }
+        
+        // Update icon
+        const icon = indicator.querySelector('i');
+        if (icon) {
+            icon.className = isAfk ? 'fas fa-user-clock text-warning' : 'fas fa-user-clock';
+        }
+    }
+}
+
+function toggleAfkStatus() {
+    if (userStatus === 'afk') {
+        // Turn off AFK
+        userStatus = 'active';
+        updateStatusOnServer('active');
+        updateAfkIndicator(false);
+        startAfkTimer(); // Restart the timer
+    } else {
+        // Turn on AFK
+        userStatus = 'afk';
+        updateStatusOnServer('afk', awayMessage);
+        updateAfkIndicator(true);
+        
+        // Don't start timer again since we manually activated AFK
+        if (afkTimeoutId) {
+            clearTimeout(afkTimeoutId);
+            afkTimeoutId = null;
+        }
+    }
+}
+
+function setupBreakReminders(frequency) {
+    // Clear any existing interval
+    if (breakReminderInterval) {
+        clearInterval(breakReminderInterval);
+    }
+    
+    // Calculate milliseconds
+    const intervalMs = frequency * 60 * 1000;
+    
+    // Set interval for break reminders
+    breakReminderInterval = setInterval(() => {
+        // Only show reminder if user is active and page is visible
+        if (document.visibilityState === 'visible' && userStatus === 'active') {
+            showBreakReminder();
+        }
+    }, intervalMs);
+    
+    console.log(`Break reminders set for every ${frequency} minutes`);
+}
+
+function showBreakReminder() {
+    // First check if we're within working hours
+    if (!isWithinWorkingHours()) {
+        return; // Don't show reminders outside work hours
+    }
+    
+    // Create or get break reminder element
+    let reminderEl = document.getElementById('break-reminder');
+    if (!reminderEl) {
+        reminderEl = document.createElement('div');
+        reminderEl.id = 'break-reminder';
+        reminderEl.className = 'break-reminder';
+        reminderEl.innerHTML = `
+            <div class="break-reminder-content">
+                <h5><i class="fas fa-coffee"></i> Time for a break!</h5>
+                <p>You've been working for a while. Take a short 5-minute break to rest your eyes and stretch.</p>
+                <div class="break-reminder-actions">
+                    <button class="btn btn-primary btn-sm take-break-btn">Take a break now</button>
+                    <button class="btn btn-secondary btn-sm dismiss-btn">Dismiss</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(reminderEl);
+        
+        // Add event listeners to buttons
+        reminderEl.querySelector('.take-break-btn').addEventListener('click', () => {
+            takeBreak();
+            hideBreakReminder();
+        });
+        
+        reminderEl.querySelector('.dismiss-btn').addEventListener('click', () => {
+            hideBreakReminder();
+        });
+        
+        // Add styles to break reminder
+        const style = document.createElement('style');
+        style.textContent = `
+            .break-reminder {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 1000;
+                max-width: 320px;
+                opacity: 0;
+                transform: translateY(20px);
+                transition: opacity 0.3s, transform 0.3s;
+            }
+            .break-reminder.show {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            .break-reminder-content {
+                padding: 15px;
+            }
+            .break-reminder-actions {
+                display: flex;
+                justify-content: space-between;
+                margin-top: 10px;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // Show the reminder
+    setTimeout(() => {
+        reminderEl.classList.add('show');
+    }, 100);
+    
+    // Play sound (optional)
+    const audio = new Audio('/static/sounds/notification.mp3');
+    audio.play().catch(e => console.log('Could not play break reminder sound'));
+    
+    // Show browser notification
+    if (Notification.permission === 'granted') {
+        new Notification('Time for a break!', {
+            body: 'You\'ve been working for a while. Take a short 5-minute break to rest your eyes and stretch.',
+            icon: '/static/img/logo.png'
+        });
+    }
+}
+
+function hideBreakReminder() {
+    const reminderEl = document.getElementById('break-reminder');
+    if (reminderEl) {
+        reminderEl.classList.remove('show');
+    }
+}
+
+function takeBreak() {
+    // Set status to break
+    userStatus = 'break';
+    updateStatusOnServer('break', 'Taking a break, back in 5 minutes');
+    
+    // Update AFK indicator if it exists
+    const indicator = document.getElementById('afk-indicator');
+    if (indicator) {
+        const statusText = indicator.querySelector('.afk-status');
+        if (statusText) {
+            statusText.textContent = 'On Break';
+        }
+        
+        // Update icon
+        const icon = indicator.querySelector('i');
+        if (icon) {
+            icon.className = 'fas fa-coffee text-info';
+        }
+    }
+    
+    // After 5 minutes, set back to active if user hasn't interacted
+    setTimeout(() => {
+        if (userStatus === 'break') {
+            userStatus = 'active';
+            updateStatusOnServer('active');
+            updateAfkIndicator(false);
+        }
+    }, 5 * 60 * 1000);
+}
+
+function checkWorkingHours() {
+    // Update status based on working hours
+    if (!isWithinWorkingHours()) {
+        if (userStatus === 'active') {
+            userStatus = 'outside-hours';
+            updateStatusOnServer('outside-hours', 'Outside working hours');
+        }
+    } else if (userStatus === 'outside-hours') {
+        userStatus = 'active';
+        updateStatusOnServer('active');
+    }
+    
+    // Check every minute
+    setTimeout(checkWorkingHours, 60 * 1000);
+}
+
+function isWithinWorkingHours() {
+    const now = new Date();
+    const day = now.getDay(); // 0 is Sunday, 1 is Monday, etc.
+    const time = now.getHours() * 60 + now.getMinutes(); // Current time in minutes since midnight
+    
+    // Get working hours from meta tags (assuming they are added to the template)
+    const workDays = document.querySelector('meta[name="work-days"]')?.getAttribute('content') || '12345'; // Default Mon-Fri
+    const workStartStr = document.querySelector('meta[name="work-start-time"]')?.getAttribute('content') || '09:00';
+    const workEndStr = document.querySelector('meta[name="work-end-time"]')?.getAttribute('content') || '17:00';
+    
+    // Convert Sunday (0) to our format (7)
+    const adjustedDay = day === 0 ? 7 : day;
+    
+    // Parse work days
+    const workDaysArray = workDays.split('').map(Number);
+    
+    // Parse work hours
+    const [startHours, startMinutes] = workStartStr.split(':').map(Number);
+    const [endHours, endMinutes] = workEndStr.split(':').map(Number);
+    
+    const workStart = startHours * 60 + startMinutes;
+    const workEnd = endHours * 60 + endMinutes;
+    
+    // Check if current day is a work day
+    if (!workDaysArray.includes(adjustedDay)) {
+        return false;
+    }
+    
+    // Check if current time is within work hours
+    return time >= workStart && time <= workEnd;
+}
+
+// Export functions for use in other modules
+window.workLifeBalance = {
+    toggleAfkStatus,
+    takeBreak,
+    showBreakReminder
+};
