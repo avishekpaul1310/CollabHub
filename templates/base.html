@@ -203,22 +203,36 @@
 
                 <ul class="navbar-nav">
                     {% if user.is_authenticated %}
+                    <!-- Add Work-Life dropdown here, before the notification dropdown -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
+                        <a class="nav-link dropdown-toggle" href="#" id="workLifeDropdown" role="button"
                             data-bs-toggle="dropdown">
-                            {{ user.username }}
+                            <i class="fas fa-balance-scale"></i> Work-Life
                         </a>
-                        <div class="dropdown-menu dropdown-menu-end">
-                            <a class="dropdown-item" href="{% url 'profile' %}">
-                                <i class="fas fa-user-circle fa-fw"></i> Profile
-                            </a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item" href="{% url 'logout' %}">
-                                <i class="fas fa-sign-out-alt fa-fw"></i> Logout
-                            </a>
-                        </div>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="workLifeDropdown">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'work_life_analytics' %}">
+                                    <i class="fas fa-chart-line fa-fw"></i> Analytics
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'notification_preferences' %}">
+                                    <i class="fas fa-cog fa-fw"></i> Settings
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="#" id="start-break-btn">
+                                    <i class="fas fa-coffee fa-fw"></i> Take a Break
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" id="toggle-afk-btn">
+                                    <i class="fas fa-user-clock fa-fw"></i> Toggle AFK Mode
+                                </a>
+                            </li>
+                        </ul>
                     </li>
-                    <!-- Add this inside your navbar, before the user dropdown -->
                     <li class="nav-item dropdown">
                         <a class="nav-link" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-bell"></i>
@@ -352,7 +366,39 @@
     {% block extra_js %}{% endblock %}
     {% if user.is_authenticated %}
     <script src="{% static 'js/online-status.js' %}"></script>
+    <!-- Work-Life Balance JavaScript -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const startBreakBtn = document.getElementById('start-break-btn');
+            const toggleAfkBtn = document.getElementById('toggle-afk-btn');
+            
+            if (startBreakBtn) {
+                startBreakBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (window.workLifeBalance && window.workLifeBalance.startBreak) {
+                        window.workLifeBalance.startBreak();
+                    } else {
+                        console.log('Starting break...');
+                        alert('Break mode activated! Remember to take some time for yourself.');
+                        // You'll need to implement the actual break functionality
+                    }
+                });
+            }
+            
+            if (toggleAfkBtn) {
+                toggleAfkBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (window.workLifeBalance && window.workLifeBalance.toggleAfkStatus) {
+                        window.workLifeBalance.toggleAfkStatus();
+                    } else {
+                        console.log('Toggling AFK status...');
+                        alert('AFK mode toggled!');
+                        // You'll need to implement the actual AFK functionality
+                    }
+                });
+            }
+        });
+    </script>
     {% endif %}
     </body>
-    
     </html>
