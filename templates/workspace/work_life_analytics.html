@@ -1,0 +1,560 @@
+{% extends 'base.html' %}
+
+{% block title %}Work-Life Analytics | {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        height: 300px;
+        margin-bottom: 30px;
+    }
+    
+    .metrics-card {
+        transition: transform 0.2s;
+    }
+    
+    .metrics-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    
+    .metric-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .badge-low {
+        background-color: #28a745;
+    }
+    
+    .badge-moderate {
+        background-color: #ffc107;
+    }
+    
+    .badge-high {
+        background-color: #dc3545;
+    }
+    
+    .workday-breakdown {
+        height: 15px;
+        width: 100%;
+        border-radius: 15px;
+        overflow: hidden;
+        display: flex;
+    }
+    
+    .work-segment {
+        background-color: #4a6fdc;
+    }
+    
+    .break-segment {
+        background-color: #28a745;
+    }
+    
+    .meeting-segment {
+        background-color: #ffc107;
+    }
+    
+    .date-range-selector {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Work-Life Analytics</h1>
+        <div>
+            <a href="{% url 'notification_preferences' %}" class="btn btn-outline-primary">
+                <i class="fas fa-cog"></i> Adjust Work-Life Settings
+            </a>
+        </div>
+    </div>
+    
+    <div class="alert alert-info">
+        <div class="d-flex">
+            <div class="me-3">
+                <i class="fas fa-info-circle fa-2x"></i>
+            </div>
+            <div>
+                <h5 class="alert-heading">Understanding Your Analytics</h5>
+                <p class="mb-0">
+                    This dashboard helps you track your work patterns and maintain a healthy work-life balance. 
+                    Use these insights to make adjustments to your working habits.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Date Range Selector -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Select Date Range</h5>
+            <div class="date-range-selector">
+                <div class="d-flex">
+                    <div class="me-3">
+                        <label for="start-date" class="form-label">Start Date</label>
+                        <input type="date" id="start-date" class="form-control" value="{{ default_start_date|date:'Y-m-d' }}">
+                    </div>
+                    <div>
+                        <label for="end-date" class="form-label">End Date</label>
+                        <input type="date" id="end-date" class="form-control" value="{{ default_end_date|date:'Y-m-d' }}">
+                    </div>
+                </div>
+                <div>
+                    <button id="apply-date-range" class="btn btn-primary">Apply</button>
+                    <div class="btn-group ms-2">
+                        <button type="button" class="btn btn-outline-secondary date-preset" data-days="7">Last 7 Days</button>
+                        <button type="button" class="btn btn-outline-secondary date-preset" data-days="30">Last 30 Days</button>
+                        <button type="button" class="btn btn-outline-secondary date-preset" data-days="90">Last 90 Days</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Summary Metrics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card metrics-card h-100">
+                <div class="card-body text-center">
+                    <div class="metric-value" id="avg-workday">7.5h</div>
+                    <div class="metric-label">Average Work Day</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metrics-card h-100">
+                <div class="card-body text-center">
+                    <div class="metric-value" id="break-compliance">85%</div>
+                    <div class="metric-label">Break Compliance</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metrics-card h-100">
+                <div class="card-body text-center">
+                    <div class="metric-value" id="after-hours-messages">12</div>
+                    <div class="metric-label">After-Hours Messages</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metrics-card h-100">
+                <div class="card-body text-center">
+                    <div class="metric-value">
+                        <span id="communication-load">Moderate</span>
+                        <span class="badge bg-warning" id="communication-badge">Moderate</span>
+                    </div>
+                    <div class="metric-label">Communication Load</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Work Time Distribution -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Daily Work Time Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="workTimeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Average Day Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="dayBreakdownChart"></canvas>
+                    </div>
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Work Time</span>
+                            <span id="work-percent">75%</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Break Time</span>
+                            <span id="break-percent">15%</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Meetings</span>
+                            <span id="meeting-percent">10%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Communication Patterns -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Communication by Hour</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
+                    <div class="text-center mt-3">
+                        <div class="alert alert-light" id="communication-insight">
+                            You tend to have the most active communication between 9AM and 11AM.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Response Time Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="responseTimeChart"></canvas>
+                    </div>
+                    <div class="alert alert-light mt-3" id="response-insight">
+                        Your median response time is 45 minutes during work hours, which is within healthy boundaries.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recommendations -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Balance Recommendations</h5>
+        </div>
+        <div class="card-body">
+            <div class="recommendations-list">
+                <div class="recommendation-item mb-3 p-3 border-start border-info border-3 bg-light rounded">
+                    <h6><i class="fas fa-lightbulb text-warning me-2"></i> Reduce After-Hours Communication</h6>
+                    <p class="mb-0">You've sent 12 messages outside your defined working hours in the past week. Consider scheduling these messages to be sent during work hours instead.</p>
+                </div>
+                
+                <div class="recommendation-item mb-3 p-3 border-start border-success border-3 bg-light rounded">
+                    <h6><i class="fas fa-check-circle text-success me-2"></i> Good Break Habits</h6>
+                    <p class="mb-0">You're taking regular breaks during 85% of your work sessions. Keep it up! Regular breaks help maintain productivity and reduce eye strain.</p>
+                </div>
+                
+                <div class="recommendation-item mb-3 p-3 border-start border-primary border-3 bg-light rounded">
+                    <h6><i class="fas fa-clock text-primary me-2"></i> Consider Adjusting Your Working Hours</h6>
+                    <p class="mb-0">Your actual work pattern shows activity starting around 8:30 AM, but your set working hours begin at 9:00 AM. You may want to update your settings to reflect your actual schedule.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the charts
+    initializeCharts();
+    
+    // Load initial data
+    loadAnalyticsData();
+    
+    // Set up event listeners
+    document.getElementById('apply-date-range').addEventListener('click', loadAnalyticsData);
+    
+    // Date preset buttons
+    document.querySelectorAll('.date-preset').forEach(button => {
+        button.addEventListener('click', function() {
+            const days = parseInt(this.getAttribute('data-days'));
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(endDate.getDate() - days);
+            
+            document.getElementById('start-date').value = formatDate(startDate);
+            document.getElementById('end-date').value = formatDate(endDate);
+            
+            loadAnalyticsData();
+        });
+    });
+});
+
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function loadAnalyticsData() {
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+    
+    // Show loading state
+    setLoadingState(true);
+    
+    // Fetch analytics data from API
+    fetch(`/api/work_analytics/?start_date=${startDate}&end_date=${endDate}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(responseData => {
+            if (responseData.status === 'success') {
+                updateDashboard(responseData.data);
+            } else {
+                console.error('Error loading analytics:', responseData.message);
+                alert('Failed to load analytics data. Please try again later.');
+            }
+            setLoadingState(false);
+        })
+        .catch(error => {
+            console.error('Error fetching analytics data:', error);
+            alert('Failed to load analytics data. Please try again later.');
+            setLoadingState(false);
+        });
+}
+
+function setLoadingState(isLoading) {
+    const loadingOverlay = document.getElementById('loading-overlay');
+    if (isLoading) {
+        if (!loadingOverlay) {
+            const overlay = document.createElement('div');
+            overlay.id = 'loading-overlay';
+            overlay.className = 'position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center';
+            overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
+            overlay.style.zIndex = '1050';
+            overlay.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading your analytics...</p>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+    } else if (loadingOverlay) {
+        loadingOverlay.remove();
+    }
+}
+
+function updateDashboard(data) {
+    // Update summary metrics
+    document.getElementById('avg-workday').textContent = data.average_work_day + 'h';
+    document.getElementById('break-compliance').textContent = data.break_compliance + '%';
+    document.getElementById('after-hours-messages').textContent = data.messages_after_hours;
+    document.getElementById('communication-load').textContent = data.communication_load;
+    
+    // Update communication load badge
+    const communicationBadge = document.getElementById('communication-badge');
+    communicationBadge.textContent = data.communication_load;
+    communicationBadge.className = `badge badge-${data.communication_load.toLowerCase()}`;
+    
+    // Update work percentages
+    document.getElementById('work-percent').textContent = '75%';  // Sample - use actual data
+    document.getElementById('break-percent').textContent = '15%';
+    document.getElementById('meeting-percent').textContent = '10%';
+    
+    // Update charts with the new data
+    updateWorkTimeChart(data.work_sessions);
+    updateDayBreakdownChart();
+    updateHourlyChart();
+    updateResponseTimeChart();
+    
+    // Update insights
+    document.getElementById('communication-insight').textContent = 
+        'You tend to have the most active communication between 9AM and 11AM.';
+    document.getElementById('response-insight').textContent = 
+        'Your median response time is 45 minutes during work hours, which is within healthy boundaries.';
+}
+
+function initializeCharts() {
+    // Initialize all charts with empty data
+    initializeWorkTimeChart();
+    initializeDayBreakdownChart();
+    initializeHourlyChart();
+    initializeResponseTimeChart();
+}
+
+function initializeWorkTimeChart() {
+    const ctx = document.getElementById('workTimeChart').getContext('2d');
+    window.workTimeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Work Time (hours)',
+                    data: [],
+                    backgroundColor: '#4a6fdc'
+                },
+                {
+                    label: 'Break Time (hours)',
+                    data: [],
+                    backgroundColor: '#28a745'
+                },
+                {
+                    label: 'Meeting Time (hours)',
+                    data: [],
+                    backgroundColor: '#ffc107'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    stacked: true
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Hours'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateWorkTimeChart(workSessions) {
+    const labels = workSessions.map(session => session.date);
+    const workData = workSessions.map(session => session.work_minutes / 60);
+    const breakData = workSessions.map(session => session.break_minutes / 60);
+    const meetingData = workSessions.map(session => session.meeting_minutes / 60);
+    
+    window.workTimeChart.data.labels = labels;
+    window.workTimeChart.data.datasets[0].data = workData;
+    window.workTimeChart.data.datasets[1].data = breakData;
+    window.workTimeChart.data.datasets[2].data = meetingData;
+    window.workTimeChart.update();
+}
+
+function initializeDayBreakdownChart() {
+    const ctx = document.getElementById('dayBreakdownChart').getContext('2d');
+    window.dayBreakdownChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Work Time', 'Break Time', 'Meetings'],
+            datasets: [{
+                data: [75, 15, 10],
+                backgroundColor: ['#4a6fdc', '#28a745', '#ffc107']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+function updateDayBreakdownChart() {
+    // This is just a sample update - in a real implementation,
+    // you would calculate these values from the API data
+    window.dayBreakdownChart.data.datasets[0].data = [75, 15, 10];
+    window.dayBreakdownChart.update();
+}
+
+function initializeHourlyChart() {
+    const ctx = document.getElementById('hourlyChart').getContext('2d');
+    const hours = Array.from({length: 24}, (_, i) => i + ':00');
+    
+    window.hourlyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: hours,
+            datasets: [{
+                label: 'Message Count',
+                data: [0, 0, 0, 0, 0, 0, 0, 5, 12, 20, 18, 15, 10, 14, 16, 12, 8, 5, 3, 1, 0, 0, 0, 0],
+                borderColor: '#4a6fdc',
+                backgroundColor: 'rgba(74, 111, 220, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Message Count'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateHourlyChart() {
+    // Sample data - in a real implementation, you would get this from the API
+    const hourlyData = [0, 0, 0, 0, 0, 0, 0, 5, 12, 20, 18, 15, 10, 14, 16, 12, 8, 5, 3, 1, 0, 0, 0, 0];
+    window.hourlyChart.data.datasets[0].data = hourlyData;
+    window.hourlyChart.update();
+}
+
+function initializeResponseTimeChart() {
+    const ctx = document.getElementById('responseTimeChart').getContext('2d');
+    
+    window.responseTimeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['< 5 min', '5-15 min', '15-30 min', '30-60 min', '1-2 hrs', '2+ hrs'],
+            datasets: [{
+                label: 'Response Time Distribution',
+                data: [15, 25, 30, 20, 8, 2],
+                backgroundColor: '#6c757d'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Percentage of Responses'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateResponseTimeChart() {
+    // Sample data - in a real implementation, you would get this from the API
+    const responseTimeData = [15, 25, 30, 20, 8, 2];
+    window.responseTimeChart.data.datasets[0].data = responseTimeData;
+    window.responseTimeChart.update();
+}
+</script>
+{% endblock %}
