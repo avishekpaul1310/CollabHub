@@ -46,8 +46,14 @@ urlpatterns = [
     path('slow-channel/<int:channel_pk>/leave/', views.leave_slow_channel, name='leave_slow_channel'),
     path('my-slow-channels/', views.my_slow_channels, name='my_slow_channels'),
 
-    # Online Status URLs
+# Online Status URLs
     path('api/user/preferences/online-status/', views.get_online_status_preference, name='get_online_status_preference'),
     path('api/user/online-status/', views.update_online_status, name='update_online_status'),
     path('api/user/<int:user_id>/online-status/', views.get_user_online_status, name='get_user_online_status'),
+
+    # Work-Life Balance URLs
+    path('api/user/work_life_balance_preferences/', views.get_work_life_balance_preferences, name='work_life_balance_preferences'),
+    path('api/user/<int:user_id>/status/', views.get_user_status, name='get_user_status'),
+    path('api/work_session/log/', views.log_work_session, name='log_work_session'),
+    path('api/work_analytics/', views.get_work_analytics, name='get_work_analytics'),
 ]
