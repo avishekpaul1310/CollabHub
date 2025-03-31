@@ -988,3 +988,45 @@ def get_user_online_status(request, user_id):
         })
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+@login_required
+def get_work_life_balance_preferences(request):
+    """API endpoint to get work-life balance preferences for the current user"""
+    try:
+        try:
+            preferences = request.user.notification_preferences
+            data = {
+                'show_online_status': preferences.show_online_status,
+                'share_working_hours': preferences.share_working_hours,
+                'away_mode': preferences.away_mode,
+                'away_message': preferences.away_message,
+                'auto_away_after': preferences.auto_away_after,
+                'break_frequency': preferences.break_frequency,
+                'work_days': preferences.work_days,
+                'work_start_time': preferences.work_start_time.strftime('%H:%M') if preferences.work_start_time else None,
+                'work_end_time': preferences.work_end_time.strftime('%H:%M') if preferences.work_end_time else None,
+                'lunch_break_start': preferences.lunch_break_start.strftime('%H:%M') if preferences.lunch_break_start else None,
+                'lunch_break_duration': preferences.lunch_break_duration
+            }
+        except:
+            # Default values if preferences don't exist
+            data = {
+                'show_online_status': False,
+                'share_working_hours': True,
+                'away_mode': False,
+                'away_message': '',
+                'auto_away_after': 30,
+                'break_frequency': 60,
+                'work_days': '12345',
+                'work_start_time': '09:00',
+                'work_end_time': '17:00',
+                'lunch_break_start': None,
+                'lunch_break_duration': 60
+            }
+            
+        return JsonResponse({
+            'status': 'success',
+            **data
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
