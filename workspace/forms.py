@@ -59,23 +59,35 @@ class FileAttachmentForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['file'].label = ''
 
+    
 class NotificationPreferenceForm(forms.ModelForm):
     class Meta:
         model = NotificationPreference
         fields = [
             'dnd_enabled', 'dnd_start_time', 'dnd_end_time', 
             'work_days', 'work_start_time', 'work_end_time',
-            'notification_mode', 'show_online_status', 'share_read_receipts'
+            'notification_mode', 'show_online_status', 'share_read_receipts',
+            # New work-life balance fields
+            'share_working_hours', 'away_mode', 'away_message', 
+            'auto_away_after', 'break_frequency',
+            'lunch_break_start', 'lunch_break_duration'
         ]
         widgets = {
             'dnd_start_time': forms.TimeInput(attrs={'type': 'time'}),
             'dnd_end_time': forms.TimeInput(attrs={'type': 'time'}),
             'work_start_time': forms.TimeInput(attrs={'type': 'time'}),
             'work_end_time': forms.TimeInput(attrs={'type': 'time'}),
+            'lunch_break_start': forms.TimeInput(attrs={'type': 'time'}),
             'work_days': forms.CheckboxSelectMultiple(choices=[
                 ('1', 'Monday'), ('2', 'Tuesday'), ('3', 'Wednesday'),
                 ('4', 'Thursday'), ('5', 'Friday'), ('6', 'Saturday'), ('7', 'Sunday')
-            ])
+            ]),
+            'away_message': forms.TextInput(attrs={
+                'placeholder': 'Away from keyboard, will respond later...'
+            }),
+            'auto_away_after': forms.NumberInput(attrs={'min': 5, 'max': 120}),
+            'break_frequency': forms.NumberInput(attrs={'min': 15, 'max': 120}),
+            'lunch_break_duration': forms.NumberInput(attrs={'min': 15, 'max': 120})
         }
 
 class ThreadForm(forms.ModelForm):
