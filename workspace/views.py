@@ -94,7 +94,8 @@ def thread_detail(request, work_item_pk, thread_pk):
     
     # For each message, preload its replies
     for message in messages_list:
-        message.replies_list = message.replies.all()
+        message.replies_list = message.replies.all()[:5]  # Show only 5 most recent replies
+        message.has_more_replies = message.replies.count() > 5
     
     # Get the list of participants who can view this thread
     participants = thread.get_participants()
