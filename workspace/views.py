@@ -43,9 +43,14 @@ def work_item_detail(request, pk):
         messages.error(request, "You don't have permission to view this work item.")
         return redirect('dashboard')
     
-    # Get threads for this work item that the user can access
-    user_threads = Thread.objects.filter(work_item=work_item)
-    threads = [thread for thread in user_threads if thread.user_can_access(request.user)]
+    # More efficient thread access check using a single database query
+    accessible_threads = Thread.objects.filter(
+        work_item=work_item
+    ).filter(
+        Q(is_public=True) | 
+        Q(created_by=request.user) | 
+        Q(allowed_users=request.user)
+    ).distinct()
     
     # Get slow channels for this work item
     slow_channels = SlowChannel.objects.filter(work_item=work_item, participants=request.user)
@@ -63,7 +68,7 @@ def work_item_detail(request, pk):
     
     context = {
         'work_item': work_item,
-        'threads': threads,
+        'threads': accessible_threads,
         'slow_channels': slow_channels,
         'files': files
     }
