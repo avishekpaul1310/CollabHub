@@ -235,6 +235,46 @@ def delete_work_item(request, pk):
     context = {'work_item': work_item}
     return render(request, 'workspace/work_item_confirm_delete.html', context)
 
+def validate_file_type(uploaded_file):
+    """
+    Validate the actual MIME type of a file, not just its extension.
+    Requires python-magic package to be installed.
+    """
+    try:
+        import magic
+        mime = magic.Magic(mime=True)
+        file_type = mime.from_buffer(uploaded_file.read(1024))
+        uploaded_file.seek(0)  # Reset file pointer
+    except ImportError:
+        logger.warning("python-magic package not installed. Falling back to extension-based validation.")
+        # Fall back to extension-based validation
+        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+        extension_mime_map = {
+            '.pdf': 'application/pdf',
+            '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.xls': 'application/vnd.ms-excel',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.txt': 'text/plain',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg'
+        }
+        file_type = extension_mime_map.get(file_extension, 'application/octet-stream')
+    
+    allowed_mime_types = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # .docx
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # .xlsx
+        'text/plain',
+        'image/jpeg',
+        'image/png'
+    ]
+    
+    return file_type in allowed_mime_types
+
 
 # Modified version of the upload_file function
 @login_required
