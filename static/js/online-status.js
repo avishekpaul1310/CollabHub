@@ -458,3 +458,34 @@ window.workLifeBalance = {
     takeBreak,
     showBreakReminder
 };
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up additional AFK toggle buttons if they exist
+    const toggleAfkButtons = document.querySelectorAll('.toggle-afk-btn');
+    
+    if (toggleAfkButtons.length > 0) {
+        toggleAfkButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Use the existing function
+                toggleAfkStatus();
+                console.log('AFK status toggled via button');
+            });
+        });
+    }
+    
+    // Make sure the AFK status is reflected correctly on page load
+    if (typeof userStatus !== 'undefined' && userStatus === 'afk') {
+        updateAfkIndicator(true);
+    }
+    
+    // Expose the toggle function globally for easier access
+    if (typeof window.workLifeBalance !== 'undefined') {
+        // Function is already exposed via window.workLifeBalance.toggleAfkStatus
+        console.log('AFK toggle function available via window.workLifeBalance.toggleAfkStatus');
+    } else {
+        // As fallback, expose directly
+        window.toggleAfkStatus = toggleAfkStatus;
+        console.log('AFK toggle function exposed directly via window.toggleAfkStatus');
+    }
+});
