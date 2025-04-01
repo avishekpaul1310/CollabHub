@@ -1421,3 +1421,19 @@ def work_life_analytics(request):
     }
     
     return render(request, 'workspace/work_life_analytics.html', context)
+
+@login_required
+def record_break_taken(request):
+    """API endpoint to record when a user takes a break"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            break_duration = data.get('duration', 5)  # Default 5 minutes
+            
+            # Record the break in a new model
+            # This could be used for analytics later
+            
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)

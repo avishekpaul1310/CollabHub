@@ -57,4 +57,5 @@ urlpatterns = [
     path('api/work_session/log/', views.log_work_session, name='log_work_session'),
     path('api/work_analytics/', views.get_work_analytics, name='get_work_analytics'),
     path('work-life-analytics/', views.work_life_analytics, name='work_life_analytics'),
+    path('api/record-break/', views.record_break_taken, name='record_break_taken'),
 ]
