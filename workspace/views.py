@@ -1181,42 +1181,210 @@ def log_work_session(request):
 
 @login_required
 def get_work_analytics(request):
-    """API endpoint to get work analytics data"""
+    """API endpoint to get work analytics data with synthetic data generation"""
     try:
-        # Start and end dates for analytics (default to last 7 days)
-        start_date = request.GET.get('start_date')
-        end_date = request.GET.get('end_date')
+        # Parse date parameters
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
         
-        if not start_date:
-            start_date = (timezone.now() - timedelta(days=7)).date()
-        if not end_date:
+        # Parse dates or use defaults (last 7 days)
+        try:
+            if start_date_str:
+                start_date = timezone.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            else:
+                start_date = (timezone.now() - timezone.timedelta(days=7)).date()
+                
+            if end_date_str:
+                end_date = timezone.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            else:
+                end_date = timezone.now().date()
+        except ValueError:
+            # Handle invalid date format
+            start_date = (timezone.now() - timezone.timedelta(days=7)).date()
             end_date = timezone.now().date()
-            
-        # In a real implementation, you would query work sessions from the database
-        # and generate actual analytics
         
-        # For demonstration, return sample data
-        sample_data = {
-            'work_sessions': [
-                {
-                    'date': (timezone.now() - timedelta(days=i)).date().isoformat(),
-                    'work_minutes': random.randint(300, 480),
-                    'break_minutes': random.randint(30, 90),
-                    'meeting_minutes': random.randint(0, 120)
-                }
-                for i in range(7)
-            ],
-            'average_work_day': 7.5,  # hours
-            'break_compliance': 85,  # percentage of recommended breaks taken
-            'messages_after_hours': 12,  # count
-            'communication_load': 'moderate'  # low, moderate, high
+        # Calculate the number of days in the range
+        date_delta = (end_date - start_date).days + 1
+        date_range = [start_date + timezone.timedelta(days=i) for i in range(date_delta)]
+        
+        # Generate seed value based on user ID for consistent randomness per user
+        import random
+        seed = request.user.id * 1000 if request.user.id else 1000
+        random.seed(seed)
+        
+        # Generate synthetic work sessions
+        work_sessions = []
+        for date in date_range:
+            # Check if it's a weekday (0=Monday, 6=Sunday)
+            weekday = date.weekday()
+            is_weekday = weekday < 5  # Monday through Friday
+            
+            if is_weekday:
+                # Higher work minutes on weekdays
+                work_minutes = random.randint(320, 480)  # 5.5 to 8 hours
+                break_minutes = random.randint(30, 90)   # 0.5 to 1.5 hours for breaks
+                meeting_minutes = random.randint(30, 180)  # 0.5 to 3 hours for meetings
+            else:
+                # Lower or zero work minutes on weekends
+                if random.random() < 0.7:  # 70% chance of no work on weekend
+                    work_minutes = 0
+                    break_minutes = 0
+                    meeting_minutes = 0
+                else:
+                    work_minutes = random.randint(60, 240)  # 1 to 4 hours if working
+                    break_minutes = random.randint(15, 60)  # 15 min to 1 hour for breaks
+                    meeting_minutes = random.randint(0, 60)   # 0 to 1 hour for meetings
+            
+            # Introduce some variation based on date to make the chart less uniform
+            variation = (hash(date.isoformat()) % 20) - 10  # -10 to 10 percent
+            work_minutes = int(work_minutes * (1 + variation/100))
+            
+            work_sessions.append({
+                'date': date.isoformat(),
+                'work_minutes': work_minutes,
+                'break_minutes': break_minutes,
+                'meeting_minutes': meeting_minutes,
+                'is_weekday': is_weekday
+            })
+        
+        # Calculate average work day (only counting days with work)
+        work_days = [s for s in work_sessions if s['work_minutes'] > 0]
+        avg_work_minutes = sum(s['work_minutes'] for s in work_days) / max(len(work_days), 1)
+        average_work_day = round(avg_work_minutes / 60, 1)  # Convert to hours
+        
+        # Calculate break compliance
+        # Formula: Actual break time / Expected break time (15min per 2 hours)
+        expected_break_minutes = sum(max(s['work_minutes'] // 120 * 15, 0) for s in work_sessions)
+        actual_break_minutes = sum(s['break_minutes'] for s in work_sessions)
+        break_compliance = round((actual_break_minutes / expected_break_minutes * 100) if expected_break_minutes > 0 else 100)
+        break_compliance = min(100, max(0, break_compliance))  # Clamp between 0-100
+        
+        # Calculate communication metrics
+        # After-hours communication: Messages sent outside work hours (synthetic)
+        messages_after_hours = random.randint(5, 20)
+        
+        # Determine communication load based on number of messages and meetings
+        meeting_hours = sum(s['meeting_minutes'] for s in work_sessions) / 60
+        message_count = random.randint(20, 100)  # Synthetic message count
+        
+        if meeting_hours > 15 or message_count > 80:
+            communication_load = 'high'
+        elif meeting_hours > 8 or message_count > 50:
+            communication_load = 'moderate'
+        else:
+            communication_load = 'low'
+        
+        # Generate hourly communication pattern
+        # More messages during 9-11am and 1-3pm, fewer during lunch and after hours
+        hourly_pattern = []
+        for hour in range(24):
+            if 9 <= hour < 12:
+                # Morning peak
+                count = random.randint(15, 25)
+            elif 12 <= hour < 13:
+                # Lunch dip
+                count = random.randint(5, 10)
+            elif 13 <= hour < 17:
+                # Afternoon
+                count = random.randint(10, 20)
+            elif 17 <= hour < 19:
+                # After work but still some activity
+                count = random.randint(3, 8)
+            else:
+                # Night/early morning
+                count = random.randint(0, 3)
+            hourly_pattern.append(count)
+        
+        # Generate response time distribution
+        # Format: [% in <5min, % in 5-15min, % in 15-30min, % in 30-60min, % in 1-2hrs, % in 2+hrs]
+        response_distribution = [15, 25, 30, 20, 8, 2]  # Percentages adding up to 100
+        
+        # Peak hour identification
+        peak_hour_start = 9 + hourly_pattern[9:17].index(max(hourly_pattern[9:17]))
+        peak_hour_end = peak_hour_start + 1
+        
+        # Format for display
+        peak_hour_start_str = f"{peak_hour_start}:00"
+        peak_hour_end_str = f"{peak_hour_end}:00"
+        
+        # Build work percentages
+        total_minutes = sum(s['work_minutes'] + s['break_minutes'] + s['meeting_minutes'] for s in work_sessions)
+        if total_minutes > 0:
+            work_percent = round(sum(s['work_minutes'] for s in work_sessions) / total_minutes * 100)
+            break_percent = round(sum(s['break_minutes'] for s in work_sessions) / total_minutes * 100)
+            meeting_percent = round(sum(s['meeting_minutes'] for s in work_sessions) / total_minutes * 100)
+        else:
+            work_percent = 75
+            break_percent = 15
+            meeting_percent = 10
+        
+        # Prepare insights based on the data
+        insights = []
+        
+        # Work-life balance insight
+        weekday_sessions = [s for s in work_sessions if s['is_weekday']]
+        weekend_sessions = [s for s in work_sessions if not s['is_weekday']]
+        weekend_work_minutes = sum(s['work_minutes'] for s in weekend_sessions)
+        
+        if weekend_work_minutes > 0:
+            insights.append({
+                'type': 'weekend_work',
+                'message': f"You worked {weekend_work_minutes//60} hours on weekends in this period. Consider setting stricter work-life boundaries.",
+                'sentiment': 'warning'
+            })
+        
+        # Break compliance insight
+        if break_compliance < 70:
+            insights.append({
+                'type': 'break_compliance',
+                'message': "You're taking fewer breaks than recommended. Regular breaks can help maintain productivity and reduce fatigue.",
+                'sentiment': 'warning'
+            })
+        elif break_compliance > 90:
+            insights.append({
+                'type': 'break_compliance',
+                'message': "You're doing a great job taking regular breaks! This helps maintain productivity and wellbeing.",
+                'sentiment': 'positive'
+            })
+        
+        # After-hours communication insight
+        if messages_after_hours > 10:
+            insights.append({
+                'type': 'after_hours',
+                'message': f"You sent {messages_after_hours} messages outside working hours. Consider using scheduled messages instead.",
+                'sentiment': 'warning'
+            })
+        elif messages_after_hours < 5:
+            insights.append({
+                'type': 'after_hours',
+                'message': "You're doing well at maintaining boundaries by limiting after-hours communication.",
+                'sentiment': 'positive'
+            })
+        
+        # Package all data for the response
+        data = {
+            'work_sessions': work_sessions,
+            'average_work_day': average_work_day,
+            'break_compliance': break_compliance,
+            'messages_after_hours': messages_after_hours,
+            'communication_load': communication_load,
+            'hourly_pattern': hourly_pattern,
+            'response_distribution': response_distribution,
+            'peak_communication_time': f"{peak_hour_start_str} - {peak_hour_end_str}",
+            'work_percent': work_percent,
+            'break_percent': break_percent,
+            'meeting_percent': meeting_percent,
+            'insights': insights,
+            'is_synthetic': True  # Flag to indicate this is synthetic data
         }
         
         return JsonResponse({
             'status': 'success',
-            'data': sample_data
+            'data': data
         })
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 @login_required
