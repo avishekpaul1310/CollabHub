@@ -276,7 +276,6 @@ def validate_file_type(uploaded_file):
     return file_type in allowed_mime_types
 
 
-# Modified version of the upload_file function
 @login_required
 def upload_file(request, pk):
     work_item = get_object_or_404(WorkItem, pk=pk)
@@ -289,12 +288,21 @@ def upload_file(request, pk):
             messages.error(request, "File size too large. Maximum size is 10MB.")
             return redirect('work_item_detail', pk=work_item.pk)
             
-        # File type validation
+        # File extension validation
         allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.png', '.jpg', '.jpeg']
         file_extension = os.path.splitext(uploaded_file.name)[1].lower()
         if file_extension not in allowed_extensions:
             messages.error(request, f"File type not allowed. Allowed types: {', '.join(allowed_extensions)}")
             return redirect('work_item_detail', pk=work_item.pk)
+        
+        # MIME type validation (more secure)
+        try:
+            if not validate_file_type(uploaded_file):
+                messages.error(request, "File content doesn't match its extension. Upload denied for security reasons.")
+                return redirect('work_item_detail', pk=work_item.pk)
+        except ImportError:
+            # If python-magic isn't installed, log a warning but continue
+            logger.warning("python-magic package not installed; skipping MIME type validation")
         
         # Create the file attachment
         FileAttachment.objects.create(
