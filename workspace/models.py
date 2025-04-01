@@ -79,6 +79,14 @@ class Notification(models.Model):
                                                 ('update', 'Work Item Update'),
                                                 ('file_upload', 'New File')])
     
+    # Priority level (urgent, normal, low)
+    PRIORITY_CHOICES = [
+        ('urgent', 'Urgent'),
+        ('normal', 'Normal'),
+        ('low', 'Low'),
+    ]
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='normal')
+    
     class Meta:
         ordering = ['-created_at']
     
