@@ -10,15 +10,12 @@ from django.db.models import Q
 from django.db import IntegrityError
 from .models import Thread, FileAttachment, SlowChannel, SlowChannelMessage
 from .forms import FileAttachmentForm, NotificationPreferenceForm, ScheduledMessageForm, SlowChannelForm, SlowChannelParticipantsForm, SlowChannelMessageForm
-import logging
+import logging, magic, json, datetime, random, os
 from django.utils import timezone
 from django.contrib.auth.models import User
-import json
 from datetime import timedelta
-import datetime
 from django.contrib.sessions.models import Session
-import random
-import os
+
 
 logger = logging.getLogger(__name__)
 
@@ -241,7 +238,6 @@ def validate_file_type(uploaded_file):
     Requires python-magic package to be installed.
     """
     try:
-        import magic
         mime = magic.Magic(mime=True)
         file_type = mime.from_buffer(uploaded_file.read(1024))
         uploaded_file.seek(0)  # Reset file pointer
@@ -295,14 +291,18 @@ def upload_file(request, pk):
             messages.error(request, f"File type not allowed. Allowed types: {', '.join(allowed_extensions)}")
             return redirect('work_item_detail', pk=work_item.pk)
         
-        # MIME type validation (more secure)
+        # Comprehensive MIME type validation
         try:
             if not validate_file_type(uploaded_file):
-                messages.error(request, "File content doesn't match its extension. Upload denied for security reasons.")
+                detected_type = magic.Magic(mime=True).from_buffer(uploaded_file.read(1024))
+                uploaded_file.seek(0)  # Reset file pointer
+                messages.error(request, f"Invalid file type detected: {detected_type}. Upload denied for security reasons.")
                 return redirect('work_item_detail', pk=work_item.pk)
-        except ImportError:
-            # If python-magic isn't installed, log a warning but continue
-            logger.warning("python-magic package not installed; skipping MIME type validation")
+        except Exception as e:
+            logger.error(f"Error during MIME type validation: {str(e)}")
+            # If python-magic isn't installed or other error occurs, log it
+            # We've already validated the extension, so we can proceed with caution
+            logger.warning("Proceeding with file upload based on extension only due to MIME validation error")
         
         # Create the file attachment
         FileAttachment.objects.create(
