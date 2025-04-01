@@ -268,6 +268,8 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+// Enhanced JavaScript for Work-Life Analytics Dashboard
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize the charts
     initializeCharts();
@@ -357,33 +359,160 @@ function setLoadingState(isLoading) {
 }
 
 function updateDashboard(data) {
+    console.log("Updating dashboard with data:", data);
+    
     // Update summary metrics
     document.getElementById('avg-workday').textContent = data.average_work_day + 'h';
     document.getElementById('break-compliance').textContent = data.break_compliance + '%';
     document.getElementById('after-hours-messages').textContent = data.messages_after_hours;
-    document.getElementById('communication-load').textContent = data.communication_load;
+    document.getElementById('communication-load').textContent = data.communication_load.charAt(0).toUpperCase() + data.communication_load.slice(1);
     
     // Update communication load badge
     const communicationBadge = document.getElementById('communication-badge');
-    communicationBadge.textContent = data.communication_load;
+    communicationBadge.textContent = data.communication_load.charAt(0).toUpperCase() + data.communication_load.slice(1);
     communicationBadge.className = `badge badge-${data.communication_load.toLowerCase()}`;
     
     // Update work percentages
-    document.getElementById('work-percent').textContent = '75%';  // Sample - use actual data
-    document.getElementById('break-percent').textContent = '15%';
-    document.getElementById('meeting-percent').textContent = '10%';
+    document.getElementById('work-percent').textContent = data.work_percent + '%';
+    document.getElementById('break-percent').textContent = data.break_percent + '%';
+    document.getElementById('meeting-percent').textContent = data.meeting_percent + '%';
     
     // Update charts with the new data
     updateWorkTimeChart(data.work_sessions);
-    updateDayBreakdownChart();
-    updateHourlyChart();
-    updateResponseTimeChart();
+    updateDayBreakdownChart(data.work_percent, data.break_percent, data.meeting_percent);
+    updateHourlyChart(data.hourly_pattern);
+    updateResponseTimeChart(data.response_distribution);
     
     // Update insights
-    document.getElementById('communication-insight').textContent = 
-        'You tend to have the most active communication between 9AM and 11AM.';
-    document.getElementById('response-insight').textContent = 
-        'Your median response time is 45 minutes during work hours, which is within healthy boundaries.';
+    updateInsights(data);
+    
+    // Show a message about synthetic data if applicable
+    if (data.is_synthetic) {
+        const syntheticNotice = document.createElement('div');
+        syntheticNotice.className = 'alert alert-info mt-3';
+        syntheticNotice.innerHTML = `
+            <i class="fas fa-info-circle"></i> <strong>Note:</strong> 
+            This dashboard is currently displaying synthetic data for demonstration purposes.
+        `;
+        
+        // Add it after the main heading or replace if it already exists
+        const existingNotice = document.querySelector('.alert-info.mt-3');
+        if (existingNotice) {
+            existingNotice.replaceWith(syntheticNotice);
+        } else {
+            const heading = document.querySelector('h1');
+            if (heading) {
+                heading.parentNode.insertBefore(syntheticNotice, heading.nextSibling);
+            }
+        }
+    }
+}
+
+function updateInsights(data) {
+    const communicationInsight = document.getElementById('communication-insight');
+    if (communicationInsight) {
+        communicationInsight.textContent = 
+            `You tend to have the most active communication between ${data.peak_communication_time}.`;
+    }
+    
+    const responseInsight = document.getElementById('response-insight');
+    if (responseInsight) {
+        // Calculate median response time from distribution
+        let medianBucket = '';
+        let cumulativePercent = 0;
+        const buckets = ['< 5 min', '5-15 min', '15-30 min', '30-60 min', '1-2 hrs', '2+ hrs'];
+        
+        for (let i = 0; i < data.response_distribution.length; i++) {
+            cumulativePercent += data.response_distribution[i];
+            if (cumulativePercent >= 50 && !medianBucket) {
+                medianBucket = buckets[i];
+            }
+        }
+        
+        responseInsight.textContent = 
+            `Your median response time is ${medianBucket} during work hours.`;
+    }
+    
+    // Update recommendations
+    updateRecommendations(data.insights || []);
+}
+
+function updateRecommendations(insights) {
+    const recommendationsList = document.querySelector('.recommendations-list');
+    if (!recommendationsList) return;
+    
+    // Clear existing recommendations
+    recommendationsList.innerHTML = '';
+    
+    // If we have specific insights, use them
+    if (insights && insights.length > 0) {
+        insights.forEach(insight => {
+            let borderClass = 'border-info';
+            let iconClass = 'fa-lightbulb text-info';
+            
+            if (insight.sentiment === 'positive') {
+                borderClass = 'border-success';
+                iconClass = 'fa-check-circle text-success';
+            } else if (insight.sentiment === 'warning') {
+                borderClass = 'border-warning';
+                iconClass = 'fa-exclamation-circle text-warning';
+            }
+            
+            const recommendation = document.createElement('div');
+            recommendation.className = `recommendation-item mb-3 p-3 border-start ${borderClass} border-3 bg-light rounded`;
+            recommendation.innerHTML = `
+                <h6><i class="fas ${iconClass} me-2"></i> ${getRecommendationTitle(insight.type)}</h6>
+                <p class="mb-0">${insight.message}</p>
+            `;
+            
+            recommendationsList.appendChild(recommendation);
+        });
+    } else {
+        // Fallback to generic recommendations
+        const genericRecommendations = [
+            {
+                title: 'Take Regular Breaks',
+                message: 'Remember to take a 5-minute break every hour to reduce eye strain and maintain productivity.',
+                type: 'info'
+            },
+            {
+                title: 'Limit After-Hours Communication',
+                message: 'Try to avoid sending messages outside your defined working hours. Use scheduled messages instead.',
+                type: 'warning'
+            },
+            {
+                title: 'Set Clear Boundaries',
+                message: 'Make sure your working hours are clearly communicated to your team to manage expectations.',
+                type: 'info'
+            }
+        ];
+        
+        genericRecommendations.forEach(rec => {
+            const borderClass = rec.type === 'warning' ? 'border-warning' : 'border-info';
+            const iconClass = rec.type === 'warning' ? 'fa-exclamation-circle text-warning' : 'fa-lightbulb text-info';
+            
+            const recommendation = document.createElement('div');
+            recommendation.className = `recommendation-item mb-3 p-3 border-start ${borderClass} border-3 bg-light rounded`;
+            recommendation.innerHTML = `
+                <h6><i class="fas ${iconClass} me-2"></i> ${rec.title}</h6>
+                <p class="mb-0">${rec.message}</p>
+            `;
+            
+            recommendationsList.appendChild(recommendation);
+        });
+    }
+}
+
+function getRecommendationTitle(type) {
+    const titles = {
+        'weekend_work': 'Weekend Work Balance',
+        'break_compliance': 'Break Habits',
+        'after_hours': 'After-Hours Communication',
+        'communication_load': 'Communication Load',
+        'work_hours': 'Working Hours'
+    };
+    
+    return titles[type] || 'Recommendation';
 }
 
 function initializeCharts() {
@@ -439,7 +568,12 @@ function initializeWorkTimeChart() {
 }
 
 function updateWorkTimeChart(workSessions) {
-    const labels = workSessions.map(session => session.date);
+    // Format dates for display
+    const labels = workSessions.map(session => {
+        const date = new Date(session.date);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    });
+    
     const workData = workSessions.map(session => session.work_minutes / 60);
     const breakData = workSessions.map(session => session.break_minutes / 60);
     const meetingData = workSessions.map(session => session.meeting_minutes / 60);
@@ -474,10 +608,8 @@ function initializeDayBreakdownChart() {
     });
 }
 
-function updateDayBreakdownChart() {
-    // This is just a sample update - in a real implementation,
-    // you would calculate these values from the API data
-    window.dayBreakdownChart.data.datasets[0].data = [75, 15, 10];
+function updateDayBreakdownChart(workPercent=75, breakPercent=15, meetingPercent=10) {
+    window.dayBreakdownChart.data.datasets[0].data = [workPercent, breakPercent, meetingPercent];
     window.dayBreakdownChart.update();
 }
 
@@ -491,7 +623,7 @@ function initializeHourlyChart() {
             labels: hours,
             datasets: [{
                 label: 'Message Count',
-                data: [0, 0, 0, 0, 0, 0, 0, 5, 12, 20, 18, 15, 10, 14, 16, 12, 8, 5, 3, 1, 0, 0, 0, 0],
+                data: Array(24).fill(0),
                 borderColor: '#4a6fdc',
                 backgroundColor: 'rgba(74, 111, 220, 0.1)',
                 fill: true,
@@ -514,11 +646,11 @@ function initializeHourlyChart() {
     });
 }
 
-function updateHourlyChart() {
-    // Sample data - in a real implementation, you would get this from the API
-    const hourlyData = [0, 0, 0, 0, 0, 0, 0, 5, 12, 20, 18, 15, 10, 14, 16, 12, 8, 5, 3, 1, 0, 0, 0, 0];
-    window.hourlyChart.data.datasets[0].data = hourlyData;
-    window.hourlyChart.update();
+function updateHourlyChart(hourlyData) {
+    if (Array.isArray(hourlyData) && hourlyData.length === 24) {
+        window.hourlyChart.data.datasets[0].data = hourlyData;
+        window.hourlyChart.update();
+    }
 }
 
 function initializeResponseTimeChart() {
@@ -530,7 +662,7 @@ function initializeResponseTimeChart() {
             labels: ['< 5 min', '5-15 min', '15-30 min', '30-60 min', '1-2 hrs', '2+ hrs'],
             datasets: [{
                 label: 'Response Time Distribution',
-                data: [15, 25, 30, 20, 8, 2],
+                data: [15, 25, 30, 20, 8, 2],  // Default percentages
                 backgroundColor: '#6c757d'
             }]
         },
@@ -550,11 +682,11 @@ function initializeResponseTimeChart() {
     });
 }
 
-function updateResponseTimeChart() {
-    // Sample data - in a real implementation, you would get this from the API
-    const responseTimeData = [15, 25, 30, 20, 8, 2];
-    window.responseTimeChart.data.datasets[0].data = responseTimeData;
-    window.responseTimeChart.update();
+function updateResponseTimeChart(responseDistribution) {
+    if (Array.isArray(responseDistribution) && responseDistribution.length === 6) {
+        window.responseTimeChart.data.datasets[0].data = responseDistribution;
+        window.responseTimeChart.update();
+    }
 }
 </script>
 {% endblock %}
