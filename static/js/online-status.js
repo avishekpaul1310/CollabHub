@@ -448,8 +448,12 @@ function isWithinWorkingHours() {
         return false;
     }
     
-    // Check if current time is within work hours
-    return time >= workStart && time <= workEnd;
+    // Handle spanning midnight (when start time is after end time)
+    if (workStart > workEnd) {
+        return time >= workStart || time <= workEnd;
+    } else {
+        return time >= workStart && time <= workEnd;
+    }
 }
 
 // Export functions for use in other modules
