@@ -534,4 +534,15 @@ class SlowChannelMessage(models.Model):
             self.delivered_at = timezone.now()
             self.save()
 
+class BreakEvent(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField(null=True, blank=True)
+    duration = models.PositiveIntegerField(null=True, blank=True)  # in seconds
+    completed = models.BooleanField(default=False)
+    
+    def calculate_duration(self):
+        if self.end_time and self.start_time:
+            return (self.end_time - self.start_time).total_seconds()
+        return None
 
