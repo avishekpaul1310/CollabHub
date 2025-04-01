@@ -473,14 +473,16 @@ def cancel_scheduled_message(request, pk):
 def edit_scheduled_message(request, pk):
     """View to edit a scheduled message"""
     message = get_object_or_404(ScheduledMessage, pk=pk, sender=request.user, is_sent=False)
+    work_item = message.work_item  # Get the work item from the message
+    thread = message.thread
     
     if request.method == 'POST':
         form = ScheduledMessageForm(
             request.POST, 
             instance=message,
             sender=request.user,
-            work_item=message.work_item,
-            thread=message.thread,
+            work_item=work_item,
+            thread=thread,
             parent_message=message.parent_message
         )
         
@@ -492,14 +494,16 @@ def edit_scheduled_message(request, pk):
         form = ScheduledMessageForm(
             instance=message,
             sender=request.user,
-            work_item=message.work_item,
-            thread=message.thread,
+            work_item=work_item,
+            thread=thread,
             parent_message=message.parent_message
         )
     
     context = {
         'form': form,
         'message': message,
+        'work_item': work_item,  # Add this to the context
+        'thread': thread,  # Add this to the context
         'title': 'Edit Scheduled Message'
     }
     return render(request, 'workspace/schedule_message_form.html', context)
