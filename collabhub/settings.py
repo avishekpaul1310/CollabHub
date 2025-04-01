@@ -142,3 +142,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 LOGIN_URL = 'login'
+
+CELERY_BEAT_SCHEDULE = {
+    'send-scheduled-messages': {
+        'task': 'workspace.tasks.send_scheduled_messages',
+        'schedule': 60.0,  # Check every minute
+    },
+}
