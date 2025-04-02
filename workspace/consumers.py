@@ -335,7 +335,7 @@ class ThreadConsumer(AsyncWebsocketConsumer):
                 should_notify = True
                 try:
                     prefs = participant.notification_preferences
-                    should_notify = prefs.should_notify(message_obj.work_item)
+                    should_notify = prefs.should_notify(message_obj.work_item, thread)
                 except Exception:
                     pass  # Default to notifying if preferences check fails
                     

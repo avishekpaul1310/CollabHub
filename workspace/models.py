@@ -172,6 +172,7 @@ class NotificationPreference(models.Model):
     
     # Channel preferences
     muted_channels = models.ManyToManyField(WorkItem, related_name='muted_by_users', blank=True)
+    muted_threads = models.ManyToManyField('Thread', related_name='muted_by_users', blank=True)
     
     # Mode settings
     NOTIFICATION_MODES = [
@@ -198,7 +199,7 @@ class NotificationPreference(models.Model):
         else:
             return self.dnd_start_time <= now <= self.dnd_end_time
     
-    def should_notify(self, work_item=None):
+    def should_notify(self, work_item=None, thread=None):
         """Determine if user should be notified based on preferences"""
         # Check DND period
         if self.is_in_dnd_period():
@@ -227,6 +228,10 @@ class NotificationPreference(models.Model):
             
         # Check muted channels
         if work_item and self.muted_channels.filter(id=work_item.id).exists():
+            return False
+            
+        # Check muted threads
+        if thread and self.muted_threads.filter(id=thread.id).exists():
             return False
             
         # Check focus mode
