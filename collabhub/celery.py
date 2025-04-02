@@ -3,9 +3,9 @@ from celery import Celery
 from celery.schedules import crontab
 
 # Set the default Django settings module
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'CollabHub.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'collabhub.settings')
 
-app = Celery('CollabHub')
+app = Celery('collabhub')
 
 # Use a string here to avoid namespace issues
 app.config_from_object('django.conf:settings', namespace='CELERY')
