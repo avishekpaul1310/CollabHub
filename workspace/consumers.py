@@ -216,6 +216,17 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except (AttributeError, NotificationPreference.DoesNotExist):
             return True  # Default to showing notifications
         
+    async def receive(self, text_data):
+        """Handle incoming messages from the notification WebSocket"""
+        try:
+            data = json.loads(text_data)
+            # Handle heartbeat messages
+            if data.get('type') == 'heartbeat':
+                await self.send(text_data=json.dumps({
+                    'type': 'heartbeat_response'
+                }))
+        except Exception as e:
+            print(f"Error in notification receive: {str(e)}")
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +254,14 @@ class ThreadConsumer(AsyncWebsocketConsumer):
     # Receive message from WebSocket
     async def receive(self, text_data):
         data = json.loads(text_data)
+        
+        # Handle heartbeat messages separately
+        if data.get('type') == 'heartbeat':
+            # Respond to heartbeat
+            await self.send(text_data=json.dumps({
+                'type': 'heartbeat_response'
+            }))
+            return
         
         # Check if message key exists before accessing it
         if 'message' not in data:
