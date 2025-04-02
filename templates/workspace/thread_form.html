@@ -10,7 +10,7 @@
                 <h4 class="mb-0">{{ title }} in "{{ work_item.title }}"</h4>
             </div>
             <div class="card-body">
-                <form method="POST">
+                <form method="POST" onsubmit="return validateForm()">
                     {% csrf_token %}
                     
                     <div class="mb-3">
@@ -19,6 +19,9 @@
                         <input type="text" name="{{ form.title.name }}" id="{{ form.title.id_for_label }}" 
                                class="form-control {% if form.title.errors %}is-invalid{% endif %}"
                                value="{{ form.title.value|default:'' }}">
+                        <div class="invalid-feedback">
+                            Please provide a thread title.
+                        </div>
                     </div>
                     
                     <div class="mb-3">
@@ -82,6 +85,51 @@
         
         // Update when checkbox changes
         isPublicCheckbox.addEventListener('change', toggleAllowedUsersSection);
+        
+        // Clear invalid state when user starts typing
+        document.getElementById('{{ form.title.id_for_label }}').addEventListener('input', function() {
+            this.classList.remove('is-invalid');
+        });
+        
+        // Clear invalid state when user selects options
+        if (document.getElementById('{{ form.allowed_users.id_for_label }}')) {
+            document.getElementById('{{ form.allowed_users.id_for_label }}').addEventListener('change', function() {
+                this.classList.remove('is-invalid');
+            });
+        }
     });
+    
+    function validateForm() {
+        let isValid = true;
+        const titleField = document.getElementById('{{ form.title.id_for_label }}');
+        const isPublicCheckbox = document.getElementById('{{ form.is_public.id_for_label }}');
+        const allowedUsersField = document.getElementById('{{ form.allowed_users.id_for_label }}');
+        
+        // Validate title
+        if (!titleField.value.trim()) {
+            titleField.classList.add('is-invalid');
+            isValid = false;
+        }
+        
+        // If private thread, validate that at least one user is selected
+        if (!isPublicCheckbox.checked && allowedUsersField) {
+            const selectedOptions = Array.from(allowedUsersField.selectedOptions);
+            if (selectedOptions.length === 0) {
+                allowedUsersField.classList.add('is-invalid');
+                isValid = false;
+                
+                // Add feedback message if it doesn't exist
+                let feedback = allowedUsersField.nextElementSibling;
+                if (!feedback || !feedback.classList.contains('invalid-feedback')) {
+                    feedback = document.createElement('div');
+                    feedback.className = 'invalid-feedback';
+                    feedback.textContent = 'For a private thread, you must select at least one user.';
+                    allowedUsersField.after(feedback);
+                }
+            }
+        }
+        
+        return isValid;
+    }
 </script>
 {% endblock %}

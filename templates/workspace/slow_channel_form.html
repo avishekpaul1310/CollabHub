@@ -26,7 +26,7 @@
                     </div>
                 </div>
                 
-                <form method="POST">
+                <form method="POST" onsubmit="return validateForm()">
                     {% csrf_token %}
                     
                     <h5 class="mb-3">Channel Details</h5>
@@ -37,6 +37,9 @@
                         <input type="text" name="{{ form.title.name }}" id="{{ form.title.id_for_label }}" 
                                class="form-control {% if form.title.errors %}is-invalid{% endif %}"
                                value="{{ form.title.value|default:'' }}">
+                        <div class="invalid-feedback">
+                            Please provide a channel title.
+                        </div>
                     </div>
                     
                     <div class="mb-3">
@@ -100,6 +103,9 @@
                             {% endfor %}
                         </div>
                         <div class="form-text">Select days when messages should be delivered</div>
+                        <div class="invalid-feedback">
+                            Please select at least one delivery day.
+                        </div>
                     </div>
                     
                     <hr class="my-4">
@@ -188,6 +194,58 @@
         
         // Update when frequency changes
         frequencySelect.addEventListener('change', toggleCustomDays);
+        
+        // Clear validation errors on input
+        const titleField = document.getElementById('{{ form.title.id_for_label }}');
+        if (titleField) {
+            titleField.addEventListener('input', function() {
+                this.classList.remove('is-invalid');
+            });
+        }
+        
+        // Clear validation errors for custom days when any checkbox is clicked
+        const customDaysCheckboxes = document.querySelectorAll('input[name="{{ form.custom_days.name }}"]');
+        customDaysCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                customDaysSection.classList.remove('is-invalid');
+                customDaysCheckboxes.forEach(cb => cb.classList.remove('is-invalid'));
+            });
+        });
     });
+    
+    function validateForm() {
+        let isValid = true;
+        
+        // Validate title
+        const titleField = document.getElementById('{{ form.title.id_for_label }}');
+        if (!titleField.value.trim()) {
+            titleField.classList.add('is-invalid');
+            isValid = false;
+        }
+        
+        // Validate custom days if required
+        const frequencySelect = document.getElementById('{{ form.message_frequency.id_for_label }}');
+        if (['custom', 'weekly', 'biweekly'].includes(frequencySelect.value)) {
+            const customDaysSection = document.getElementById('custom-days-section');
+            const checkboxes = customDaysSection.querySelectorAll('input[type="checkbox"]');
+            
+            // Check if at least one day is selected
+            const atLeastOneChecked = Array.from(checkboxes).some(checkbox => checkbox.checked);
+            if (!atLeastOneChecked) {
+                checkboxes.forEach(cb => cb.classList.add('is-invalid'));
+                customDaysSection.classList.add('is-invalid');
+                isValid = false;
+            }
+        }
+        
+        // Validate min_response_interval (should be positive)
+        const intervalField = document.getElementById('{{ form.min_response_interval.id_for_label }}');
+        if (intervalField && (isNaN(intervalField.value) || parseFloat(intervalField.value) <= 0)) {
+            intervalField.classList.add('is-invalid');
+            isValid = false;
+        }
+        
+        return isValid;
+    }
 </script>
 {% endblock %}
