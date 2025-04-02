@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.contrib.auth.models import User
 from datetime import timedelta
 from django.contrib.sessions.models import Session
-
+from django.core.paginator import Paginator  # Add this import at the top
 
 logger = logging.getLogger(__name__)
 
@@ -89,11 +89,16 @@ def thread_detail(request, work_item_pk, thread_pk):
         messages.error(request, "You don't have permission to view this thread.")
         return redirect('work_item_detail', pk=work_item.pk)
     
-    # Get messages
+    # Get messages with pagination
     messages_list = thread.thread_messages.filter(Q(parent=None) | Q(is_thread_starter=True)).order_by('created_at')
     
+    # Add pagination
+    paginator = Paginator(messages_list, 10)  # Show 10 messages per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
     # For each message, preload its replies
-    for message in messages_list:
+    for message in page_obj:
         message.replies_list = message.replies.all()[:5]  # Show only 5 most recent replies
         message.has_more_replies = message.replies.count() > 5
     
@@ -103,9 +108,10 @@ def thread_detail(request, work_item_pk, thread_pk):
     context = {
         'work_item': work_item,
         'thread': thread,
-        'messages': messages_list,
+        'messages': page_obj,
         'participants': participants,
-        'is_public': thread.is_public
+        'is_public': thread.is_public,
+        'page_obj': page_obj,  # Add paginator object to context for page navigation
     }
     return render(request, 'workspace/thread_detail.html', context)
 
