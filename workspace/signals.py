@@ -20,16 +20,38 @@ def send_notification(notification):
     user = notification.user
     work_item = notification.work_item
     
+    # Handle notification based on priority
+    if notification.priority == 'urgent':
+        # Urgent notifications bypass DND and work hour settings
+        logger.info(f"Sending urgent notification to {user.username}")
+        # Send immediately regardless of preferences
+        _deliver_notification(notification)
+        return
+    
     # Check if user should receive notification based on preferences
     try:
         preferences = user.notification_preferences
         
-        # Skip if the user has DND enabled or if this is outside work hours
-        if not preferences.should_notify():
-            # You could mark the notification as delayed here
-            notification.is_delayed = True
-            notification.save()
-            return
+        # For normal priority, respect DND and working hours
+        if notification.priority == 'normal':
+            # Skip if the user has DND enabled or if this is outside work hours
+            if not preferences.should_notify():
+                # Mark the notification as delayed
+                notification.is_delayed = True
+                notification.save()
+                return
+        
+        # For low priority, we could implement batching or additional delay
+        elif notification.priority == 'low':
+            # Skip if outside work hours or delay for batch processing
+            if not preferences.should_notify():
+                notification.is_delayed = True
+                notification.save()
+                return
+            
+            # Could implement batching logic here for low priority
+            # For now, just mark with a flag that could be used by a batching system
+            notification.is_batched = True
             
         # Skip if the user has muted this work item
         if work_item and preferences.muted_channels.filter(id=work_item.id).exists():
@@ -50,14 +72,19 @@ def send_notification(notification):
     except (AttributeError, NotificationPreference.DoesNotExist):
         pass  # If no preferences exist, continue with notification
     
-    # Send notification through WebSocket
+    # Deliver the notification
+    _deliver_notification(notification)
+
+def _deliver_notification(notification):
+    """Helper function to deliver a notification via WebSocket"""
     try:
         notification_data = {
             'id': notification.id,
             'message': notification.message,
             'work_item_id': notification.work_item.id if notification.work_item else None,
             'created_at': notification.created_at.isoformat(),
-            'notification_type': notification.notification_type
+            'notification_type': notification.notification_type,
+            'priority': notification.priority
         }
         
         async_to_sync(channel_layer.group_send)(
@@ -65,7 +92,8 @@ def send_notification(notification):
             {
                 'type': 'notification_message',
                 'message': notification.message,
-                'count': Notification.objects.filter(user=notification.user, is_read=False).count()
+                'count': Notification.objects.filter(user=notification.user, is_read=False).count(),
+                'priority': notification.priority
             }
         )
         
