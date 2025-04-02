@@ -574,6 +574,34 @@ class SlowChannelMessage(models.Model):
             self.is_delivered = True
             self.delivered_at = timezone.now()
             self.save()
+    
+    def deliver(self):
+        """Deliver this message and create notifications for participants"""
+        # Mark as delivered
+        self.mark_delivered()
+        
+        # Create notifications for all participants except the sender
+        participants = self.channel.participants.exclude(id=self.user.id)
+        
+        # Create a notification for each participant
+        for participant in participants:
+            # Check if the participant should be notified based on preferences
+            try:
+                preferences = participant.notification_preferences
+                if preferences.should_notify(work_item=self.channel.work_item):
+                    Notification.objects.create(
+                        user=participant,
+                        message=f"New message in slow channel '{self.channel.title}'",
+                        work_item=self.channel.work_item,
+                        notification_type='message',
+                        priority='normal'
+                    )
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error creating notification for slow channel message: {str(e)}")
+        
+        return True
 
 class BreakEvent(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

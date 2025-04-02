@@ -394,6 +394,18 @@ class SlowChannelMessageForm(forms.ModelForm):
         if commit:
             instance.save()
             
+            # Schedule the message for delivery with Celery
+            try:
+                from .tasks import schedule_new_message_delivery
+                schedule_new_message_delivery.delay(instance.id)
+            except ImportError:
+                # If Celery isn't available, log a warning
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "Celery tasks not available. Message delivery scheduling may be delayed."
+                )
+            
         return instance
 
 
