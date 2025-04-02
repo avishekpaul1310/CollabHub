@@ -344,5 +344,6 @@ class ThreadConsumer(AsyncWebsocketConsumer):
                         user=participant,
                         message=f"{sender.username} posted in thread '{thread.title}'",
                         work_item=message_obj.work_item,
+                        thread=thread,  # Store thread reference
                         notification_type='message'
                     )

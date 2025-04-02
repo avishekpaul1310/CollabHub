@@ -150,6 +150,7 @@ def create_message_notification(sender, instance, created, **kwargs):
                 user=user,
                 message=f"New message from {instance.user.username} in '{instance.work_item.title}'",
                 work_item=instance.work_item,
+                thread=instance.thread,  # This will be None for non-threaded messages
                 notification_type='message'
             )
             send_notification(notification)

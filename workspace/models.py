@@ -67,6 +67,9 @@ class Notification(models.Model):
     # Optional link to related work item
     work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, null=True, blank=True)
     
+    # Optional link to related thread
+    thread = models.ForeignKey('Thread', on_delete=models.CASCADE, null=True, blank=True)
+    
     # Is this notification read?
     is_read = models.BooleanField(default=False)
     
