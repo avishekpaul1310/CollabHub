@@ -372,10 +372,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const message = messageInput.value.trim();
 
             if (message) {
-                // Send message through WebSocket
+                // Send message through WebSocket with user_id
                 threadSocket.send(JSON.stringify({
                     'message': message,
-                    'thread_id': threadId
+                    'thread_id': threadId,
+                    'user_id': currentUserId
                 }));
 
                 // Clear input field
@@ -395,11 +396,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const reply = replyInput.value.trim();
             
             if (reply) {
-                // Send reply through WebSocket
+                // Send reply through WebSocket with user_id
                 threadSocket.send(JSON.stringify({
                     'message': reply,
                     'thread_id': threadId,
-                    'parent_id': parentId
+                    'parent_id': parentId,
+                    'user_id': currentUserId
                 }));
                 
                 // Clear input and hide form
@@ -617,11 +619,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     const reply = replyInput.value.trim();
                     
                     if (reply) {
-                        // Send reply through WebSocket
+                        // Send reply through WebSocket with user_id
                         threadSocket.send(JSON.stringify({
                             'message': reply,
                             'thread_id': threadId,
-                            'parent_id': parentId
+                            'parent_id': parentId,
+                            'user_id': currentUserId
                         }));
                         
                         // Clear input and hide form
@@ -646,6 +649,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Helper function to mark a message as read
     function markMessageAsRead(messageId) {
+        if (!messageId) {
+            console.warn('Attempted to mark undefined message as read');
+            return;
+        }
+        
         fetch(`/api/message/${messageId}/mark-read/`, {
             method: 'POST',
             headers: {
