@@ -25,6 +25,7 @@ idna==3.10
 incremental==24.7.2
 kombu==5.5.2
 lxml==5.3.1
+magic==0.4.27
 msgpack==1.1.0
 odfpy==1.4.1
 packaging==24.2
