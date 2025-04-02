@@ -274,163 +274,150 @@
 {% block extra_js %}
 <script src="{% static 'js/mark-thread-read.js' %}"></script>
 <script src="{% static 'js/read-receipts.js' %}"></script>
+<script src="{% static 'js/websocket-manager.js' %}"></script>
+{{ thread.id|json_script:"thread-id" }}
 <script>
-    // Store thread, work item and user IDs for WebSocket communication
-    const threadId = "{{ thread.id }}";
-    const workItemId = "{{ work_item.id }}";
-    const userId = "{{ request.user.id }}";
-    const username = "{{ request.user.username }}";
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up improved WebSocket connection
+    const threadId = JSON.parse(document.getElementById('thread-id').textContent);
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const wsUrl = `${wsProtocol}${window.location.host}/ws/thread/${threadId}/`;
     
-    // Determine WebSocket protocol (ws or wss)
-    const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    // Create WebSocket connection with custom handlers
+    const threadSocket = window.webSocketManager.createConnection(wsUrl, {
+        debug: true,
+        onOpen: () => {
+            console.log('Thread WebSocket connected');
+            // Update UI to show connected status
+            const statusElement = document.getElementById('connection-status');
+            if (statusElement) {
+                statusElement.textContent = 'Connected';
+                statusElement.className = 'badge bg-success';
+            }
+        },
+        onClose: () => {
+            console.log('Thread WebSocket closed');
+            // Update UI to show disconnected status
+            const statusElement = document.getElementById('connection-status');
+            if (statusElement) {
+                statusElement.textContent = 'Disconnected';
+                statusElement.className = 'badge bg-danger';
+            }
+        },
+        onError: (error) => {
+            console.error('Thread WebSocket error:', error);
+        },
+        onReconnect: (attempt) => {
+            console.log(`Attempting to reconnect (${attempt})...`);
+            // Update UI to show reconnecting status
+            const statusElement = document.getElementById('connection-status');
+            if (statusElement) {
+                statusElement.textContent = `Reconnecting (${attempt})`;
+                statusElement.className = 'badge bg-warning';
+            }
+        }
+    });
     
-    // Connection status elements
-    const connectionIndicator = document.getElementById('connection-indicator');
-    const connectionMessage = document.getElementById('connection-message');
-    const connectionStatus = document.querySelector('.connection-status');
-    const chatStatus = document.getElementById('chat-status');
+    // Connect to the WebSocket server
+    threadSocket.connect();
     
-    // Improve reconnection with exponential backoff
-    function setupWebSocketWithReconnect() {
-        const maxReconnectAttempts = 5;
-        let reconnectAttempt = 0;
+    // Register message handler
+    threadSocket.on('message', function(data) {
+        if (data.message_type === 'new_message') {
+            addMessageToThread(data.message);
+        } else if (data.message_type === 'message_read') {
+            updateMessageReadStatus(data.message_id, data.read_by);
+        }
+    });
+    
+    // Handle form submission to send messages
+    const messageForm = document.getElementById('message-form');
+    if (messageForm) {
+        messageForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const messageInput = document.getElementById('message-content');
+            const message = messageInput.value.trim();
+            
+            if (message) {
+                // Send message through WebSocket
+                threadSocket.send(JSON.stringify({
+                    'message': message,
+                    'thread_id': threadId
+                }));
+                
+                // Clear input field
+                messageInput.value = '';
+            }
+        });
+    }
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', function() {
+        // Properly disconnect
+        threadSocket.disconnect();
+    });
+    
+    // Helper function to add a message to the thread
+    function addMessageToThread(message) {
+        // Implementation depends on your UI structure
+        console.log('Adding message to thread:', message);
         
-        function connect() {
-            const chatSocket = new WebSocket(
-                wsScheme + '://' + window.location.host + '/ws/thread/' + threadId + '/'
-            );
-            
-            chatSocket.onopen = function(e) {
-                console.log('WebSocket connection established');
-                
-                // Reset reconnect attempts on successful connection
-                reconnectAttempt = 0;
-                
-                // Update connection status
-                if (connectionIndicator) connectionIndicator.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
-                if (connectionMessage) connectionMessage.textContent = 'Connected to chat';
-                if (connectionStatus) connectionStatus.classList.replace('alert-info', 'alert-success');
-                
-                // Update chat status badge
-                if (chatStatus) {
-                    chatStatus.className = 'badge bg-success ms-2';
-                    chatStatus.innerHTML = 'Connected';
-                }
-                
-                // Hide the status after 3 seconds
-                if (connectionStatus) {
-                    setTimeout(() => {
-                        connectionStatus.style.display = 'none';
-                    }, 3000);
-                }
-            };
-            
-            chatSocket.onmessage = function(e) {
-                try {
-                    const data = JSON.parse(e.data);
-                    console.log('Message received:', data);
-                    
-                    const isCurrentUser = data.user_id == userId;
-                    const messageId = data.message_id;
-                    const parentId = data.parent_id;
-                    
-                    if (parentId) {
-                        // This is a reply
-                        handleReplyMessage(data, isCurrentUser);
-                    } else {
-                        // This is a main thread message
-                        handleMainMessage(data, isCurrentUser);
-                    }
-                    
-                    // Scroll to bottom for new main messages or if already at bottom
-                    const messagesList = document.getElementById('messages-list');
-                    if (messagesList && (!parentId || isNearBottom(messagesList))) {
-                        messagesList.scrollTop = messagesList.scrollHeight;
-                    }
-                } catch (error) {
-                    console.error('Error processing received message:', error);
-                }
-            };
-            
-            chatSocket.onclose = function(e) {
-                console.log('WebSocket connection closed:', e.code, e.reason);
-                
-                // Update connection status
-                if (connectionIndicator) connectionIndicator.innerHTML = '<i class="fas fa-times-circle text-danger"></i>';
-                if (connectionMessage) {
-                    connectionMessage.innerHTML = 'Disconnected from chat. <a href="#" onclick="window.location.reload()">Refresh the page</a> to reconnect.';
-                }
-                if (connectionStatus) {
-                    connectionStatus.classList.replace('alert-info', 'alert-danger');
-                    connectionStatus.style.display = 'block';
-                }
-                
-                // Update chat status badge
-                if (chatStatus) {
-                    chatStatus.className = 'badge bg-danger ms-2';
-                    chatStatus.innerHTML = 'Disconnected';
-                }
-                
-                // If the close was due to access denied
-                if (e.code === 4003) {
-                    if (connectionMessage) {
-                        connectionMessage.innerHTML = 'Access denied. You do not have permission to view this thread.';
-                    }
-                    
-                    const chatForm = document.getElementById('chat-form');
-                    if (chatForm) chatForm.style.display = 'none';
-                    
-                    // Redirect to work item page after 3 seconds
-                    setTimeout(() => {
-                        window.location.href = `{% url 'work_item_detail' work_item.pk %}`;
-                    }, 3000);
-                } else if (reconnectAttempt < maxReconnectAttempts) {
-                    // Try to reconnect with increasing delay
-                    reconnectAttempt++;
-                    const delay = Math.min(1000 * Math.pow(2, reconnectAttempt), 30000);
-                    
-                    console.log(`Attempting to reconnect (${reconnectAttempt}/${maxReconnectAttempts}) in ${delay/1000} seconds...`);
-                    
-                    setTimeout(() => {
-                        connect();
-                    }, delay);
-                } else {
-                    console.log('Maximum reconnection attempts reached.');
-                    if (connectionMessage) {
-                        connectionMessage.innerHTML = 'Could not reconnect. Please <a href="#" onclick="window.location.reload()">refresh the page</a>.';
-                    }
-                }
-            };
-            
-            chatSocket.onerror = function(e) {
-                console.error('WebSocket error:', e);
-                
-                // Update connection status
-                if (connectionIndicator) {
-                    connectionIndicator.innerHTML = '<i class="fas fa-exclamation-triangle text-warning"></i>';
-                }
-                if (connectionMessage) {
-                    connectionMessage.textContent = 'Error connecting to chat. Please try refreshing the page.';
-                }
-                if (connectionStatus) {
-                    connectionStatus.classList.replace('alert-info', 'alert-warning');
-                }
-            };
-            
-            // Store socket globally for sending messages
-            window.chatSocket = chatSocket;
+        // Create message element
+        const messagesContainer = document.getElementById('thread-messages');
+        if (!messagesContainer) return;
+        
+        const messageElement = document.createElement('div');
+        messageElement.className = `message ${message.user_id == currentUserId ? 'message-sent' : 'message-received'}`;
+        messageElement.dataset.messageId = message.id;
+        
+        messageElement.innerHTML = `
+            <div class="message-user">${message.username}</div>
+            <div class="message-content">${message.content}</div>
+            <div class="message-time">${message.created_at}</div>
+        `;
+        
+        messagesContainer.appendChild(messageElement);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Mark message as read if it's not from current user
+        if (message.user_id != currentUserId) {
+            markMessageAsRead(message.id);
+        }
+    }
+    
+    // Helper function to mark a message as read
+    function markMessageAsRead(messageId) {
+        fetch(`/api/message/${messageId}/mark-read/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Message marked as read:', data);
+        })
+        .catch(error => {
+            console.error('Error marking message as read:', error);
+        });
+    }
+    
+    // Helper function to update read status UI
+    function updateMessageReadStatus(messageId, readBy) {
+        const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+        if (!messageElement) return;
+        
+        let readStatusElement = messageElement.querySelector('.read-status');
+        if (!readStatusElement) {
+            readStatusElement = document.createElement('div');
+            readStatusElement.className = 'read-status small text-muted mt-1';
+            messageElement.appendChild(readStatusElement);
         }
         
-        // Start the initial connection
-        connect();
+        readStatusElement.textContent = `Read by: ${readBy.join(', ')}`;
     }
-    
-    // Initialize WebSocket connection with reconnect capability
-    setupWebSocketWithReconnect();
-    
-    // Check if scroll is near bottom
-    function isNearBottom(element) {
-        // ...existing code...
-    }
+});
 </script>
 {% endblock %}

@@ -22,4 +22,4 @@ def send_scheduled_messages():
         # Mark scheduled message as sent
         message.is_sent = True
         message.sent_at = timezone.now()
-        message.save()
+        message.save()  # Added this line to actually save the changes

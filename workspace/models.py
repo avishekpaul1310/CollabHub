@@ -587,3 +587,49 @@ class BreakEvent(models.Model):
             return (self.end_time - self.start_time).total_seconds()
         return None
 
+class UserOnlineStatus(models.Model):
+    """Model to store user online status persistently across sessions"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='online_status')
+    status = models.CharField(
+        max_length=20, 
+        choices=[
+            ('online', 'Online'),
+            ('away', 'Away'),
+            ('afk', 'AFK'),
+            ('offline', 'Offline'),
+            ('break', 'On Break'),
+            ('outside-hours', 'Outside Working Hours')
+        ],
+        default='offline'
+    )
+    status_message = models.CharField(max_length=255, blank=True, null=True)
+    last_activity = models.DateTimeField(auto_now=True)
+    
+    # Session info for multiple device tracking
+    device_info = models.JSONField(default=dict, blank=True)
+    
+    class Meta:
+        verbose_name_plural = "User Online Statuses"
+        
+    def __str__(self):
+        return f"{self.user.username}: {self.status}"
+    
+    def update_status(self, status, message=None, session_key=None):
+        """Update user status with option to track by session"""
+        self.status = status
+        
+        if message:
+            self.status_message = message
+        
+        # Track device if session_key provided
+        if session_key:
+            devices = self.device_info.copy()
+            devices[session_key] = {
+                'status': status,
+                'last_active': timezone.now().isoformat(),
+                'user_agent': None  # Could be added if we capture user-agent
+            }
+            self.device_info = devices
+        
+        self.save()
+
