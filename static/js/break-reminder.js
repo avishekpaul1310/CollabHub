@@ -14,11 +14,18 @@ class BreakReminderService {
     }
     
     init() {
-        // Check if user preferences are already loaded
-        if (window.workLifeBalance && window.workLifeBalance.breakSettings) {
-            this.updateSettings(window.workLifeBalance.breakSettings);
-        } else {
-            // Fetch from server
+        // Use a more robust initialization pattern to prevent undefined errors
+        const settings = (window.workLifeBalance && window.workLifeBalance.breakSettings) || {
+            enabled: true,
+            frequency: 60,
+            breakDuration: 5
+        };
+        
+        // Apply settings
+        this.updateSettings(settings);
+        
+        // If we didn't get settings from window.workLifeBalance.breakSettings, fetch from server
+        if (!(window.workLifeBalance && window.workLifeBalance.breakSettings)) {
             this.fetchSettings();
         }
         
