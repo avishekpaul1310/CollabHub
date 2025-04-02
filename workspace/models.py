@@ -411,12 +411,53 @@ class ScheduledMessage(models.Model):
             self.sent_at = timezone.now()
             self.save()
             
+            # Log successful delivery
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Scheduled message {self.id} sent successfully at {self.sent_at}")
+            
+            # Create notifications for recipients
+            self._create_notifications(message)
+            
             return message
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
             logger.error(f"Error sending scheduled message {self.id}: {str(e)}")
             return False
+    
+    def _create_notifications(self, message):
+        """Create notifications for the message recipients"""
+        try:
+            # Determine recipients based on work item and thread
+            recipients = set()
+            
+            # Add work item owner if not the sender
+            if self.work_item.owner != self.sender:
+                recipients.add(self.work_item.owner)
+            
+            # Add collaborators except sender
+            collaborators = self.work_item.collaborators.exclude(id=self.sender.id)
+            recipients.update(collaborators)
+            
+            # If thread exists, only include thread participants
+            if self.thread:
+                thread_participants = self.thread.get_participants()
+                recipients = recipients.intersection(thread_participants)
+                
+            # Create notifications
+            for recipient in recipients:
+                Notification.objects.create(
+                    user=recipient,
+                    message=f"{self.sender.username} sent a scheduled message in '{self.work_item.title}'",
+                    work_item=self.work_item,
+                    thread=self.thread,
+                    notification_type='message'
+                )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error creating notifications for scheduled message {self.id}: {str(e)}")
 
 class MessageReadReceipt(models.Model):
     """Model to track when messages are read by users"""

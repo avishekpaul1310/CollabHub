@@ -1557,3 +1557,30 @@ def record_break_taken(request):
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
+
+@login_required
+def manually_run_scheduled_messages(request):
+    """View to manually trigger the scheduled messages task (for testing only)"""
+    if not request.user.is_superuser:
+        messages.error(request, "This action is only available to superusers.")
+        return redirect('dashboard')
+    
+    try:
+        # Get all due messages
+        now = timezone.now()
+        due_messages = ScheduledMessage.objects.filter(
+            is_sent=False, 
+            scheduled_time__lte=now
+        )
+        
+        # Process each message
+        sent_count = 0
+        for message in due_messages:
+            if message.send():
+                sent_count += 1
+        
+        messages.success(request, f"Successfully sent {sent_count} scheduled messages.")
+    except Exception as e:
+        messages.error(request, f"Error sending scheduled messages: {str(e)}")
+    
+    return redirect('my_scheduled_messages')

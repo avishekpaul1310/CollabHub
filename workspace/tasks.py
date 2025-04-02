@@ -7,25 +7,47 @@ logger = logging.getLogger(__name__)
 
 @shared_task
 def send_scheduled_messages():
+    """Task to send scheduled messages that are due"""
     now = timezone.now()
-    messages = ScheduledMessage.objects.filter(is_sent=False, scheduled_time__lte=now)
     
-    for message in messages:
-        # Create actual message from scheduled one
-        actual_message = Message(
-            work_item=message.work_item,
-            thread=message.thread,
-            user=message.sender,
-            content=message.content,
-            parent=message.parent_message,
-            is_scheduled=True
-        )
-        actual_message.save()
-        
-        # Mark scheduled message as sent
-        message.is_sent = True
-        message.sent_at = timezone.now()
-        message.save()
+    # Get all unsent messages that are due
+    due_messages = ScheduledMessage.objects.filter(
+        is_sent=False,
+        scheduled_time__lte=now
+    )
+    
+    if not due_messages.exists():
+        logger.info('No scheduled messages are due')
+        return {'status': 'success', 'sent': 0, 'failed': 0}
+    
+    logger.info(f'Found {due_messages.count()} scheduled messages to send')
+    
+    # Keep track of successes and failures
+    success_count = 0
+    fail_count = 0
+    
+    # Process each message
+    for scheduled_msg in due_messages:
+        try:
+            # Send the message
+            message = scheduled_msg.send()
+            
+            if message:
+                success_count += 1
+                logger.info(f'Sent scheduled message #{scheduled_msg.id} from {scheduled_msg.sender.username}')
+            else:
+                fail_count += 1
+                logger.error(f'Failed to send scheduled message #{scheduled_msg.id}')
+        except Exception as e:
+            fail_count += 1
+            logger.error(f'Error sending scheduled message #{scheduled_msg.id}: {str(e)}')
+    
+    # Return summary
+    return {
+        'status': 'success', 
+        'sent': success_count, 
+        'failed': fail_count
+    }
 
 @shared_task
 def deliver_slow_channel_messages():
