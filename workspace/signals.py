@@ -32,6 +32,19 @@ def send_notification(notification):
     try:
         preferences = user.notification_preferences
         
+        # Check focus mode - only allow notifications from selected users and work items
+        if preferences.focus_mode:
+            # Get the user who caused this notification
+            notification_sender = notification.get_sender() if hasattr(notification, 'get_sender') else None
+            
+            # Only allow notifications from selected users and work items
+            if (notification_sender and notification_sender not in preferences.focus_users.all() and
+                (not work_item or work_item not in preferences.focus_work_items.all())):
+                # Save but mark as filtered by focus mode
+                notification.is_focus_filtered = True
+                notification.save()
+                return
+        
         # For normal priority, respect DND and working hours
         if notification.priority == 'normal':
             # Skip if the user has DND enabled or if this is outside work hours

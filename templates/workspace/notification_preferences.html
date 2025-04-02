@@ -195,6 +195,75 @@
                     </div>
 
                     <div class="mb-4">
+                        <h5>Focus Mode Settings</h5>
+                        
+                        <div class="alert alert-info mb-3">
+                            <div class="d-flex">
+                                <div class="me-3">
+                                    <i class="fas fa-focus fa-2x"></i>
+                                </div>
+                                <div>
+                                    <p class="mb-0">
+                                        Focus mode helps you concentrate by limiting notifications to only those from 
+                                        selected users and work items. All other notifications will be collected for 
+                                        review later.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            {{ form.focus_mode.errors }}
+                            <input type="checkbox" name="{{ form.focus_mode.name }}"
+                                id="{{ form.focus_mode.id_for_label }}"
+                                class="form-check-input {% if form.focus_mode.errors %}is-invalid{% endif %}" 
+                                {% if form.focus_mode.value %}checked{% endif %}>
+                            <label for="{{ form.focus_mode.id_for_label }}" class="form-check-label">
+                                Enable Focus Mode
+                            </label>
+                            <div class="form-text">
+                                When enabled, you'll only receive notifications from selected users and work items.
+                            </div>
+                        </div>
+                        
+                        <div id="focus-mode-settings" {% if not form.focus_mode.value %}style="display:none;"{% endif %}>
+                            <div class="mb-3">
+                                <label class="form-label">Select Users</label>
+                                {{ form.focus_users.errors }}
+                                <select name="{{ form.focus_users.name }}" id="{{ form.focus_users.id_for_label }}" 
+                                      class="form-select {% if form.focus_users.errors %}is-invalid{% endif %}" multiple>
+                                    {% for user in form.focus_users.field.queryset %}
+                                    <option value="{{ user.id }}" 
+                                        {% if user in form.focus_users.value %}selected{% endif %}>
+                                        {{ user.username }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">
+                                    Only notifications from these users will be shown when focus mode is enabled
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Select Work Items</label>
+                                {{ form.focus_work_items.errors }}
+                                <select name="{{ form.focus_work_items.name }}" id="{{ form.focus_work_items.id_for_label }}" 
+                                      class="form-select {% if form.focus_work_items.errors %}is-invalid{% endif %}" multiple>
+                                    {% for item in form.focus_work_items.field.queryset %}
+                                    <option value="{{ item.id }}" 
+                                        {% if item in form.focus_work_items.value %}selected{% endif %}>
+                                        {{ item.title }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">
+                                    Only notifications from these work items will be shown when focus mode is enabled
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
                         <h5>Asynchronous Communication Settings</h5>
                 
                         <div class="alert alert-info mb-3">
@@ -351,6 +420,22 @@
                 });
             });
         });
+
+        // Focus mode toggle
+        const focusModeCheckbox = document.getElementById('{{ form.focus_mode.id_for_label }}');
+        const focusModeSettings = document.getElementById('focus-mode-settings');
+        
+        function toggleFocusModeSettings() {
+            if (focusModeCheckbox.checked) {
+                focusModeSettings.style.display = 'block';
+            } else {
+                focusModeSettings.style.display = 'none';
+            }
+        }
+        
+        // Initialize and add event listener
+        toggleFocusModeSettings();
+        focusModeCheckbox.addEventListener('change', toggleFocusModeSettings);
     });
 </script>
 {% endblock %}

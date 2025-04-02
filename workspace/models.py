@@ -152,6 +152,24 @@ class NotificationPreference(models.Model):
             help_text="Duration of lunch break in minutes"
         )
     
+    # Focus Mode settings
+    focus_mode = models.BooleanField(
+        default=False,
+        help_text="When enabled, only receive notifications from selected users and work items"
+    )
+    focus_users = models.ManyToManyField(
+        User, 
+        blank=True, 
+        related_name='focus_notifications',
+        help_text="Only receive notifications from these users when in focus mode"
+    )
+    focus_work_items = models.ManyToManyField(
+        WorkItem, 
+        blank=True, 
+        related_name='focus_notifications',
+        help_text="Only receive notifications from these work items when in focus mode"
+    )
+    
     # Channel preferences
     muted_channels = models.ManyToManyField(WorkItem, related_name='muted_by_users', blank=True)
     
@@ -210,6 +228,13 @@ class NotificationPreference(models.Model):
         # Check muted channels
         if work_item and self.muted_channels.filter(id=work_item.id).exists():
             return False
+            
+        # Check focus mode
+        if self.focus_mode:
+            if work_item and not self.focus_work_items.filter(id=work_item.id).exists():
+                return False
+            if work_item and not self.focus_users.filter(id=work_item.owner.id).exists():
+                return False
             
         return True
     

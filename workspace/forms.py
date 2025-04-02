@@ -67,10 +67,12 @@ class NotificationPreferenceForm(forms.ModelForm):
             'dnd_enabled', 'dnd_start_time', 'dnd_end_time', 
             'work_days', 'work_start_time', 'work_end_time',
             'notification_mode', 'show_online_status', 'share_read_receipts',
-            # New work-life balance fields
+            # Work-life balance fields
             'share_working_hours', 'away_mode', 'away_message', 
             'auto_away_after', 'break_frequency',
-            'lunch_break_start', 'lunch_break_duration'
+            'lunch_break_start', 'lunch_break_duration',
+            # Focus mode fields
+            'focus_mode', 'focus_users', 'focus_work_items'
         ]
         widgets = {
             'dnd_start_time': forms.TimeInput(attrs={'type': 'time'}),
