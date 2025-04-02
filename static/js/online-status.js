@@ -274,18 +274,39 @@ function setupBreakReminders(frequency) {
         clearInterval(breakReminderInterval);
     }
     
-    // Calculate milliseconds
-    const intervalMs = frequency * 60 * 1000;
+    // Create or use existing workLifeBalance object
+    if (!window.workLifeBalance) {
+        window.workLifeBalance = {};
+    }
     
-    // Set interval for break reminders
-    breakReminderInterval = setInterval(() => {
-        // Only show reminder if user is active and page is visible
-        if (document.visibilityState === 'visible' && userStatus === 'active') {
-            showBreakReminder();
+    // Store settings for BreakReminderService to use
+    window.workLifeBalance.breakSettings = {
+        enabled: true,
+        frequency: frequency,
+        breakDuration: 5 // Default break duration in minutes
+    };
+    
+    // If the comprehensive implementation is available, use it
+    if (typeof BreakReminderService === 'function') {
+        console.log('Initializing BreakReminderService');
+        // Initialize only if not already initialized
+        if (!window.workLifeBalance.breakReminder) {
+            window.workLifeBalance.breakReminder = new BreakReminderService();
+            window.workLifeBalance.breakReminder.init();
+        } else {
+            // Update settings on existing instance
+            window.workLifeBalance.breakReminder.updateSettings(window.workLifeBalance.breakSettings);
         }
-    }, intervalMs);
-    
-    console.log(`Break reminders set for every ${frequency} minutes`);
+    } else {
+        // Fall back to simple implementation if BreakReminderService not available
+        console.log(`Simple break reminders set for every ${frequency} minutes`);
+        breakReminderInterval = setInterval(() => {
+            // Only show reminder if user is active and page is visible
+            if (document.visibilityState === 'visible' && userStatus === 'active') {
+                showBreakReminder();
+            }
+        }, frequency * 60 * 1000);
+    }
 }
 
 function showBreakReminder() {
