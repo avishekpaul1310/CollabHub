@@ -10,7 +10,70 @@ class BreakReminderService {
         this.breakDuration = 5; // Default: 5 minutes
         this.breakHistory = [];
         this.nextBreakTime = null;
-        this.breakNotificationAudio = new Audio('/static/sounds/break-reminder.mp3');
+        
+        // Try to load break-reminder sound, with fallbacks
+        this.breakNotificationAudio = this.loadNotificationSound();
+    }
+    
+    loadNotificationSound() {
+        // Try different paths for audio files, in order of preference
+        const soundPaths = [
+            '/static/sounds/break-reminder.mp3',
+            '/static/sounds/notification.mp3',
+            '/static/media/notification.mp3',
+            '/static/audio/notification.mp3'
+        ];
+        
+        let audio = null;
+        
+        // First check if the global playNotificationSound function exists
+        if (window.playNotificationSound) {
+            console.log('Using global notification sound function');
+            return { 
+                play: () => window.playNotificationSound()
+            };
+        }
+        
+        // Otherwise try to load one of the sound files
+        for (const path of soundPaths) {
+            try {
+                audio = new Audio(path);
+                
+                // Test if the audio can be played
+                audio.volume = 0;
+                const playPromise = audio.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        // Success - pause and reset volume
+                        audio.pause();
+                        audio.currentTime = 0;
+                        audio.volume = 1.0;
+                        console.log(`Successfully loaded notification sound from: ${path}`);
+                    }).catch(e => {
+                        // This file failed, but we'll continue trying others
+                        console.log(`Failed to play sound from ${path}: ${e}`);
+                        audio = null;
+                    });
+                    
+                    // If we got this far without error, we have a valid audio file
+                    break;
+                }
+            } catch (error) {
+                console.log(`Error loading sound file from ${path}: ${error}`);
+                audio = null;
+            }
+        }
+        
+        // If no audio loaded, create a silent dummy object
+        if (!audio) {
+            console.warn('Could not load any notification sounds, using silent fallback');
+            return {
+                play: () => Promise.resolve()
+            };
+        }
+        
+        return audio;
     }
     
     init() {
@@ -243,9 +306,18 @@ class BreakReminderService {
             document.head.appendChild(style);
         }
         
-        // Play sound
+        // Play sound with better error handling
         if (this.breakNotificationAudio) {
-            this.breakNotificationAudio.play().catch(e => console.log('Could not play break reminder sound'));
+            try {
+                const playPromise = this.breakNotificationAudio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.log('Could not play break reminder sound:', error);
+                    });
+                }
+            } catch (e) {
+                console.log('Error playing break reminder sound:', e);
+            }
         }
         
         // Show the reminder
