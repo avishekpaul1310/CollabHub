@@ -283,45 +283,49 @@ def validate_file_type(uploaded_file):
 def upload_file(request, pk):
     work_item = get_object_or_404(WorkItem, pk=pk)
     
+    # Check if user has permission to add files to this work item
+    if request.user != work_item.owner and request.user not in work_item.collaborators.all():
+        messages.error(request, "You don't have permission to add files to this work item.")
+        return redirect('work_item_detail', pk=pk)
+    
     if request.method == 'POST' and request.FILES.get('file'):
         uploaded_file = request.FILES['file']
         
-        # File size validation - limit to 10MB
+        # Simple file size validation - limit to 10MB
         if uploaded_file.size > 10 * 1024 * 1024:
             messages.error(request, "File size too large. Maximum size is 10MB.")
-            return redirect('work_item_detail', pk=work_item.pk)
-            
-        # File extension validation
-        allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.png', '.jpg', '.jpeg']
-        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+            return redirect('work_item_detail', pk=pk)
+        
+        # Simplified validation - just check file extension
+        file_name = uploaded_file.name
+        file_extension = os.path.splitext(file_name)[1].lower()
+        allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt', '.png', '.jpg', '.jpeg']
+        
         if file_extension not in allowed_extensions:
             messages.error(request, f"File type not allowed. Allowed types: {', '.join(allowed_extensions)}")
-            return redirect('work_item_detail', pk=work_item.pk)
-        
-        # Comprehensive MIME type validation
-        try:
-            if not validate_file_type(uploaded_file):
-                detected_type = magic.Magic(mime=True).from_buffer(uploaded_file.read(1024))
-                uploaded_file.seek(0)  # Reset file pointer
-                messages.error(request, f"Invalid file type detected: {detected_type}. Upload denied for security reasons.")
-                return redirect('work_item_detail', pk=work_item.pk)
-        except Exception as e:
-            logger.error(f"Error during MIME type validation: {str(e)}")
-            # If python-magic isn't installed or other error occurs, log it
-            # We've already validated the extension, so we can proceed with caution
-            logger.warning("Proceeding with file upload based on extension only due to MIME validation error")
+            return redirect('work_item_detail', pk=pk)
         
         # Create the file attachment
-        FileAttachment.objects.create(
-            work_item=work_item,
-            file=uploaded_file,
-            name=uploaded_file.name,
-            uploaded_by=request.user
-        )
+        try:
+            FileAttachment.objects.create(
+                work_item=work_item,
+                file=uploaded_file,
+                name=file_name,
+                uploaded_by=request.user
+            )
+            messages.success(request, f"File '{file_name}' uploaded successfully.")
+            
+            # Log success
+            logger.info(f"File uploaded: {file_name} to work item {pk} by {request.user.username}")
+            
+        except Exception as e:
+            logger.error(f"Error saving file: {str(e)}")
+            messages.error(request, "Error saving file. Please try again.")
         
-        return redirect('work_item_detail', pk=work_item.pk)
+        return redirect('work_item_detail', pk=pk)
     
-    return redirect('work_item_detail', pk=work_item.pk)
+    # If not a POST request or no file, just redirect back
+    return redirect('work_item_detail', pk=pk)
 
 @login_required
 def notifications_list(request):
