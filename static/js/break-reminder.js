@@ -54,11 +54,12 @@ class BreakReminderService {
         fetch('/api/user/work_life_balance_preferences/')
             .then(response => response.json())
             .then(data => {
-                if (data.status === 'success') {
+                // Check either for success status or direct break_frequency property
+                if ((data.status === 'success' && data.break_frequency) || data.break_frequency) {
                     this.updateSettings({
                         enabled: true,
                         frequency: data.break_frequency,
-                        breakDuration: 5
+                        breakDuration: data.break_duration || 5
                     });
                 }
             })
