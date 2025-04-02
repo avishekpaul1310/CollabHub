@@ -183,6 +183,7 @@
                         <!-- Reply form (initially hidden) -->
                         <div class="reply-form mt-2 ps-4" id="reply-form-{{ message.id }}" style="display: none;">
                             <form class="thread-reply-form">
+                                {% csrf_token %}
                                 <input type="hidden" name="parent_id" value="{{ message.id }}">
                                 <div class="input-group">
                                     <textarea class="form-control reply-input" rows="2" placeholder="Write a reply..."></textarea>
@@ -252,6 +253,7 @@
         
             <!-- Message input form -->
             <form id="chat-form" class="mt-3">
+                {% csrf_token %}
                 <div class="input-group">
                     <textarea id="message-input" class="form-control" rows="3" placeholder="Type your message..."></textarea>
                     <div class="input-group-append">
@@ -277,12 +279,12 @@
 <script src="{% static 'js/websocket-manager.js' %}"></script>
 {{ thread.id|json_script:"thread-id" }}
 {{ work_item.pk|json_script:"work-item-id" }}
+{{ request.user.id|json_script:"user-id" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Get current user ID and CSRF token
     const currentUserId = JSON.parse(document.getElementById('user-id').textContent);
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
-                      document.querySelector('[name=csrfmiddlewaretoken]')?.value;
                       document.querySelector('[name=csrfmiddlewaretoken]')?.value;
     
     // Set up improved WebSocket connection
@@ -373,7 +375,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Send message through WebSocket
                 threadSocket.send(JSON.stringify({
                     'message': message,
-                    'user_id': currentUserId,
                     'thread_id': threadId
                 }));
 
@@ -397,7 +398,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Send reply through WebSocket
                 threadSocket.send(JSON.stringify({
                     'message': reply,
-                    'user_id': currentUserId,
                     'thread_id': threadId,
                     'parent_id': parentId
                 }));
@@ -564,7 +564,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <button class="btn btn-sm btn-outline-secondary reply-btn" data-message-id="${data.message_id}">
                             <i class="fas fa-reply"></i> Reply
                         </button>
-                        <a href="/workspace/${workItemId}/thread/${threadId}/schedule-reply/${data.message_id}/" class="btn btn-sm btn-outline-primary ms-2">
+                        <a href="/work-item/${workItemId}/thread/${threadId}/schedule-reply/${data.message_id}/" class="btn btn-sm btn-outline-primary ms-2">
                             <i class="fas fa-clock"></i> Schedule Reply
                         </a>
                     </div>
@@ -620,7 +620,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Send reply through WebSocket
                         threadSocket.send(JSON.stringify({
                             'message': reply,
-                            'user_id': currentUserId,
                             'thread_id': threadId,
                             'parent_id': parentId
                         }));
