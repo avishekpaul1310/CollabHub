@@ -39,17 +39,8 @@ def index_file(file_attachment):
         extracted_text = ""
         
         if file_extension in SUPPORTED_TEXT_EXTENSIONS or file_extension in SUPPORTED_CODE_EXTENSIONS:
-            # For text files, simply read the content
-            file_content = default_storage.open(file_attachment.file.name).read()
-            try:
-                extracted_text = file_content.decode('utf-8')
-            except UnicodeDecodeError:
-                # Try with different encoding if utf-8 fails
-                try:
-                    extracted_text = file_content.decode('latin-1')
-                except:
-                    logger.warning(f"Could not decode file content for {filename}")
-                    return False
+            # For text files, read in chunks to handle large files efficiently
+            extracted_text = extract_text_from_file_in_chunks(file_attachment)
                     
         elif file_extension in SUPPORTED_DOC_EXTENSIONS:
             # For document files, use appropriate extraction methods
@@ -71,6 +62,37 @@ def index_file(file_attachment):
     except Exception as e:
         logger.error(f"Error indexing file {file_attachment.name}: {str(e)}")
         return False
+
+
+def extract_text_from_file_in_chunks(file_attachment, chunk_size=4096):
+    """Extract text from a text file in chunks to handle large files efficiently"""
+    try:
+        file_obj = default_storage.open(file_attachment.file.name)
+        text_chunks = []
+        
+        # Read file in chunks
+        chunk = file_obj.read(chunk_size)
+        while chunk:
+            try:
+                # Try UTF-8 first
+                text_chunks.append(chunk.decode('utf-8'))
+            except UnicodeDecodeError:
+                try:
+                    # Fall back to latin-1
+                    text_chunks.append(chunk.decode('latin-1'))
+                except:
+                    logger.warning(f"Could not decode chunk in file {file_attachment.name}")
+                    break
+            
+            # Read next chunk
+            chunk = file_obj.read(chunk_size)
+        
+        file_obj.close()
+        return ''.join(text_chunks)
+        
+    except Exception as e:
+        logger.error(f"Error extracting text in chunks from {file_attachment.name}: {str(e)}")
+        return ""
 
 
 def extract_text_from_document(file_attachment, extension):
