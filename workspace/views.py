@@ -291,12 +291,12 @@ def upload_file(request, pk):
     if request.method == 'POST' and request.FILES.get('file'):
         uploaded_file = request.FILES['file']
         
-        # Simple file size validation
+        # Simple file size validation - limit to 10MB
         if uploaded_file.size > 10 * 1024 * 1024:
             messages.error(request, "File size too large. Maximum size is 10MB.")
             return redirect('work_item_detail', pk=pk)
         
-        # Basic extension validation
+        # Extension-based validation - no need for magic library
         file_name = uploaded_file.name
         file_extension = os.path.splitext(file_name)[1].lower()
         allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt', '.png', '.jpg', '.jpeg']
@@ -314,12 +314,17 @@ def upload_file(request, pk):
                 uploaded_by=request.user
             )
             messages.success(request, f"File '{file_name}' uploaded successfully.")
+            
+            # Log success
+            logger.info(f"File uploaded: {file_name} to work item {pk} by {request.user.username}")
+            
         except Exception as e:
             logger.error(f"Error saving file: {str(e)}")
             messages.error(request, "Error saving file. Please try again.")
         
         return redirect('work_item_detail', pk=pk)
     
+    # If not a POST request or no file, just redirect back
     return redirect('work_item_detail', pk=pk)
 
 @login_required
