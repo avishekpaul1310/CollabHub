@@ -279,6 +279,12 @@
 {{ work_item.pk|json_script:"work-item-id" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Get current user ID and CSRF token
+    const currentUserId = JSON.parse(document.getElementById('user-id').textContent);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
+                      document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+                      document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+    
     // Set up improved WebSocket connection
     const threadId = JSON.parse(document.getElementById('thread-id').textContent);
     const workItemId = JSON.parse(document.getElementById('work-item-id').textContent); // Get work item ID from the template context
@@ -292,19 +298,35 @@ document.addEventListener('DOMContentLoaded', function() {
         onOpen: () => {
             console.log('Thread WebSocket connected');
             // Update UI to show connected status
-            const statusElement = document.getElementById('connection-status');
+            const statusElement = document.getElementById('chat-status');
             if (statusElement) {
                 statusElement.textContent = 'Connected';
-                statusElement.className = 'badge bg-success';
+                statusElement.className = 'badge bg-success ms-2';
+            }
+            
+            // Also update the connection indicator and message
+            const indicatorElement = document.getElementById('connection-indicator');
+            const messageElement = document.getElementById('connection-message');
+            if (indicatorElement && messageElement) {
+                indicatorElement.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
+                messageElement.textContent = 'Connected to chat';
             }
         },
         onClose: () => {
             console.log('Thread WebSocket closed');
             // Update UI to show disconnected status
-            const statusElement = document.getElementById('connection-status');
+            const statusElement = document.getElementById('chat-status');
             if (statusElement) {
                 statusElement.textContent = 'Disconnected';
-                statusElement.className = 'badge bg-danger';
+                statusElement.className = 'badge bg-danger ms-2';
+            }
+            
+            // Also update the connection indicator and message
+            const indicatorElement = document.getElementById('connection-indicator');
+            const messageElement = document.getElementById('connection-message');
+            if (indicatorElement && messageElement) {
+                indicatorElement.innerHTML = '<i class="fas fa-times-circle text-danger"></i>';
+                messageElement.textContent = 'Disconnected from chat';
             }
         },
         onError: (error) => {
@@ -313,47 +335,112 @@ document.addEventListener('DOMContentLoaded', function() {
         onReconnect: (attempt) => {
             console.log(`Attempting to reconnect (${attempt})...`);
             // Update UI to show reconnecting status
-            const statusElement = document.getElementById('connection-status');
+            const statusElement = document.getElementById('chat-status');
             if (statusElement) {
                 statusElement.textContent = `Reconnecting (${attempt})`;
-                statusElement.className = 'badge bg-warning';
+                statusElement.className = 'badge bg-warning ms-2';
+            }
+            
+            // Also update the connection indicator and message
+            const indicatorElement = document.getElementById('connection-indicator');
+            const messageElement = document.getElementById('connection-message');
+            if (indicatorElement && messageElement) {
+                indicatorElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+                messageElement.textContent = `Reconnecting to chat (attempt ${attempt})...`;
             }
         }
     });
     
     // Connect to the WebSocket server
     threadSocket.connect();
-    
+
     // Register message handler
-    threadSocket.on('message', function(data) {
-        if (data.message_type === 'new_message') {
-            addMessageToThread(data.message);
-        } else if (data.message_type === 'message_read') {
-            updateMessageReadStatus(data.message_id, data.read_by);
-        }
+    threadSocket.on('message', function (data) {
+        console.log('Received message:', data);
+        addMessageToThread(data);
     });
-    
+
     // Handle form submission to send messages
-    const messageForm = document.getElementById('message-form');
-    if (messageForm) {
-        messageForm.addEventListener('submit', function(e) {
+    const chatForm = document.getElementById('chat-form');
+    if (chatForm) {
+        chatForm.addEventListener('submit', function (e) {
             e.preventDefault();
-            
-            const messageInput = document.getElementById('message-content');
+
+            const messageInput = document.getElementById('message-input');
             const message = messageInput.value.trim();
-            
+
             if (message) {
                 // Send message through WebSocket
                 threadSocket.send(JSON.stringify({
                     'message': message,
+                    'user_id': currentUserId,
                     'thread_id': threadId
                 }));
-                
+
                 // Clear input field
                 messageInput.value = '';
             }
         });
     }
+    
+    // Handle thread reply forms
+    const threadReplyForms = document.querySelectorAll('.thread-reply-form');
+    threadReplyForms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const parentId = form.querySelector('input[name="parent_id"]').value;
+            const replyInput = form.querySelector('.reply-input');
+            const reply = replyInput.value.trim();
+            
+            if (reply) {
+                // Send reply through WebSocket
+                threadSocket.send(JSON.stringify({
+                    'message': reply,
+                    'user_id': currentUserId,
+                    'thread_id': threadId,
+                    'parent_id': parentId
+                }));
+                
+                // Clear input and hide form
+                replyInput.value = '';
+                const replyForm = document.getElementById(`reply-form-${parentId}`);
+                if (replyForm) {
+                    replyForm.style.display = 'none';
+                }
+            }
+        });
+    });
+    
+    // Set up reply button handlers
+    const replyButtons = document.querySelectorAll('.reply-btn');
+    replyButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const messageId = this.getAttribute('data-message-id');
+            const replyForm = document.getElementById(`reply-form-${messageId}`);
+            
+            // Toggle reply form
+            if (replyForm) {
+                replyForm.style.display = replyForm.style.display === 'none' ? 'block' : 'none';
+                if (replyForm.style.display === 'block') {
+                    replyForm.querySelector('.reply-input').focus();
+                }
+            }
+        });
+    });
+    
+    // Set up toggle replies buttons
+    const toggleButtons = document.querySelectorAll('.toggle-replies');
+    toggleButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const messageId = this.getAttribute('data-message-id');
+            const repliesContainer = document.getElementById(`replies-${messageId}`);
+            
+            if (repliesContainer) {
+                repliesContainer.style.display = repliesContainer.style.display === 'none' ? 'block' : 'none';
+            }
+        });
+    });
     
     // Clean up on page unload
     window.addEventListener('beforeunload', function() {
@@ -362,30 +449,199 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Helper function to add a message to the thread
-    function addMessageToThread(message) {
-        // Implementation depends on your UI structure
-        console.log('Adding message to thread:', message);
+    function addMessageToThread(data) {
+        const messagesContainer = document.getElementById('messages-list');
+        if (!messagesContainer) {
+            console.error('Messages container not found');
+            return;
+        }
         
-        // Create message element
-        const messagesContainer = document.getElementById('thread-messages');
-        if (!messagesContainer) return;
+        // If this is a reply to an existing message
+        if (data.parent_id) {
+            // Get the replies container for this parent
+            const repliesContainer = document.getElementById(`replies-${data.parent_id}`);
+            
+            if (repliesContainer) {
+                // Create reply element
+                const replyElement = document.createElement('div');
+                replyElement.className = `reply p-2 mb-2 ${data.user_id == currentUserId ? 'bg-light border-end border-info border-2' : 'border-start border-info border-2'} rounded`;
+                replyElement.id = `message-${data.message_id}`;
+                replyElement.dataset.messageId = data.message_id;
+                
+                replyElement.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div>
+                            <strong>${data.username}</strong>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            ${data.user_id == currentUserId ? `
+                            <button class="btn btn-sm btn-link text-muted read-receipt-icon p-0 me-2" 
+                                    data-message-id="${data.message_id}" 
+                                    data-bs-toggle="tooltip" 
+                                    title="See who has read this message">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            ` : ''}
+                            <small class="text-muted">${data.timestamp}</small>
+                        </div>
+                    </div>
+                    <div class="reply-content">${data.message}</div>
+                    <div class="reply-actions mt-1">
+                        <button class="btn btn-sm btn-outline-secondary reply-btn" data-message-id="${data.parent_id}">
+                            <i class="fas fa-reply"></i> Reply
+                        </button>
+                    </div>
+                `;
+                
+                // Add to replies container
+                repliesContainer.appendChild(replyElement);
+                
+                // Show replies container if it's hidden
+                if (repliesContainer.style.display === 'none') {
+                    repliesContainer.style.display = 'block';
+                }
+                
+                // Update reply count in toggle button
+                const toggleButton = document.querySelector(`.toggle-replies[data-message-id="${data.parent_id}"]`);
+                if (toggleButton) {
+                    const currentCount = parseInt(toggleButton.textContent.match(/\d+/)[0] || '0');
+                    toggleButton.innerHTML = `<i class="fas fa-comments"></i> ${currentCount + 1} replies`;
+                } else {
+                    // Create toggle button if it doesn't exist
+                    const parentMessage = document.getElementById(`message-${data.parent_id}`);
+                    if (parentMessage) {
+                        const actionsDiv = parentMessage.querySelector('.message-actions');
+                        if (actionsDiv) {
+                            const newToggleButton = document.createElement('button');
+                            newToggleButton.className = 'btn btn-sm btn-link toggle-replies ms-2';
+                            newToggleButton.setAttribute('data-message-id', data.parent_id);
+                            newToggleButton.innerHTML = '<i class="fas fa-comments"></i> 1 reply';
+                            
+                            actionsDiv.appendChild(newToggleButton);
+                            
+                            // Add click handler
+                            newToggleButton.addEventListener('click', function() {
+                                const messageId = this.getAttribute('data-message-id');
+                                const repliesContainer = document.getElementById(`replies-${messageId}`);
+                                
+                                if (repliesContainer) {
+                                    repliesContainer.style.display = repliesContainer.style.display === 'none' ? 'block' : 'none';
+                                }
+                            });
+                        }
+                    }
+                }
+            } else {
+                console.error(`Replies container for message ${data.parent_id} not found`);
+            }
+        } else {
+            // Create new message element
+            const messageContainer = document.createElement('div');
+            messageContainer.className = 'message-container mb-3';
+            messageContainer.id = `message-${data.message_id}`;
+            messageContainer.dataset.messageId = data.message_id;
+            
+            messageContainer.innerHTML = `
+                <div class="message p-3 ${data.user_id == currentUserId ? 'bg-light border-end border-primary border-3' : 'border-start border-primary border-3'} rounded">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <strong>${data.username}</strong>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            ${data.user_id == currentUserId ? `
+                            <button class="btn btn-sm btn-link text-muted read-receipt-icon p-0 me-2" 
+                                    data-message-id="${data.message_id}" 
+                                    data-bs-toggle="tooltip" 
+                                    title="See who has read this message">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            ` : ''}
+                            <small class="text-muted">${data.timestamp}</small>
+                        </div>
+                    </div>
+                    <div class="message-content mb-2">${data.message}</div>
+                    <div class="message-actions d-flex align-items-center">
+                        <button class="btn btn-sm btn-outline-secondary reply-btn" data-message-id="${data.message_id}">
+                            <i class="fas fa-reply"></i> Reply
+                        </button>
+                        <a href="/workspace/${workItemId}/thread/${threadId}/schedule-reply/${data.message_id}/" class="btn btn-sm btn-outline-primary ms-2">
+                            <i class="fas fa-clock"></i> Schedule Reply
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Replies container (initially hidden) -->
+                <div class="replies-container ps-4 mt-2" id="replies-${data.message_id}" style="display: none;"></div>
+                
+                <!-- Reply form (initially hidden) -->
+                <div class="reply-form mt-2 ps-4" id="reply-form-${data.message_id}" style="display: none;">
+                    <form class="thread-reply-form">
+                        <input type="hidden" name="parent_id" value="${data.message_id}">
+                        <div class="input-group">
+                            <textarea class="form-control reply-input" rows="2" placeholder="Write a reply..."></textarea>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            // Add to messages container
+            messagesContainer.appendChild(messageContainer);
+            
+            // Add handler for the new reply button
+            const replyButton = messageContainer.querySelector('.reply-btn');
+            if (replyButton) {
+                replyButton.addEventListener('click', function() {
+                    const messageId = this.getAttribute('data-message-id');
+                    const replyForm = document.getElementById(`reply-form-${messageId}`);
+                    
+                    if (replyForm) {
+                        replyForm.style.display = replyForm.style.display === 'none' ? 'block' : 'none';
+                        if (replyForm.style.display === 'block') {
+                            replyForm.querySelector('.reply-input').focus();
+                        }
+                    }
+                });
+            }
+            
+            // Add handler for the new reply form
+            const replyForm = messageContainer.querySelector('.thread-reply-form');
+            if (replyForm) {
+                replyForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const parentId = replyForm.querySelector('input[name="parent_id"]').value;
+                    const replyInput = replyForm.querySelector('.reply-input');
+                    const reply = replyInput.value.trim();
+                    
+                    if (reply) {
+                        // Send reply through WebSocket
+                        threadSocket.send(JSON.stringify({
+                            'message': reply,
+                            'user_id': currentUserId,
+                            'thread_id': threadId,
+                            'parent_id': parentId
+                        }));
+                        
+                        // Clear input and hide form
+                        replyInput.value = '';
+                        const replyFormContainer = document.getElementById(`reply-form-${parentId}`);
+                        if (replyFormContainer) {
+                            replyFormContainer.style.display = 'none';
+                        }
+                    }
+                });
+            }
+        }
         
-        const messageElement = document.createElement('div');
-        messageElement.className = `message ${message.user_id == currentUserId ? 'message-sent' : 'message-received'}`;
-        messageElement.dataset.messageId = message.id;
-        
-        messageElement.innerHTML = `
-            <div class="message-user">${message.username}</div>
-            <div class="message-content">${message.content}</div>
-            <div class="message-time">${message.created_at}</div>
-        `;
-        
-        messagesContainer.appendChild(messageElement);
+        // Scroll to new message
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
         
-        // Mark message as read if it's not from current user
-        if (message.user_id != currentUserId) {
-            markMessageAsRead(message.id);
+        // Mark message as read if it's from another user
+        if (data.user_id != currentUserId) {
+            markMessageAsRead(data.message_id);
         }
     }
     
@@ -405,21 +661,6 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error marking message as read:', error);
         });
-    }
-    
-    // Helper function to update read status UI
-    function updateMessageReadStatus(messageId, readBy) {
-        const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
-        if (!messageElement) return;
-        
-        let readStatusElement = messageElement.querySelector('.read-status');
-        if (!readStatusElement) {
-            readStatusElement = document.createElement('div');
-            readStatusElement.className = 'read-status small text-muted mt-1';
-            messageElement.appendChild(readStatusElement);
-        }
-        
-        readStatusElement.textContent = `Read by: ${readBy.join(', ')}`;
     }
 });
 </script>
