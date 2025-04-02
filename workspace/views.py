@@ -408,6 +408,28 @@ def toggle_mute_work_item(request, pk):
     return JsonResponse({'status': 'error'}, status=400)
 
 @login_required
+def toggle_mute_thread(request, pk):
+    """Ajax view to toggle muting a thread"""
+    thread = get_object_or_404(Thread, pk=pk)
+    
+    # Get or create preferences
+    preferences, created = NotificationPreference.objects.get_or_create(user=request.user)
+    
+    if preferences.muted_threads.filter(id=pk).exists():
+        preferences.muted_threads.remove(thread)
+        is_muted = False
+    else:
+        preferences.muted_threads.add(thread)
+        is_muted = True
+    
+    # If this is an AJAX request, return a JSON response
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'status': 'success', 'is_muted': is_muted})
+    
+    # Otherwise redirect back to thread detail page
+    return redirect('thread_detail', work_item_pk=thread.work_item.pk, thread_pk=thread.pk)
+
+@login_required
 def schedule_message(request, work_item_pk, thread_pk=None, parent_message_pk=None):
     """View to schedule a message for future sending"""
     work_item = get_object_or_404(WorkItem, pk=work_item_pk)
