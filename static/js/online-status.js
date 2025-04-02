@@ -380,9 +380,18 @@ function showBreakReminder() {
         reminderEl.classList.add('show');
     }, 100);
     
-    // Play sound (optional)
-    const audio = new Audio('/static/sounds/notification.mp3');
-    audio.play().catch(e => console.log('Could not play break reminder sound'));
+    // Play sound (using the new global function)
+    if (window.playNotificationSound) {
+        window.playNotificationSound();
+    } else {
+        // Fallback to old method if global function isn't available
+        try {
+            const audio = new Audio('/static/sounds/notification.mp3');
+            audio.play().catch(e => console.log('Could not play break reminder sound'));
+        } catch (e) {
+            console.log('Could not play break reminder sound');
+        }
+    }
     
     // Show browser notification
     if (Notification.permission === 'granted') {

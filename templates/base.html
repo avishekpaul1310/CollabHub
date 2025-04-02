@@ -336,6 +336,59 @@
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     
+    <!-- Audio Notification System -->
+    <script>
+        // Initialize audio context and notification sounds
+        let notificationSound;
+        let audioContext;
+        let hasUserInteracted = false;
+        
+        // Function to initialize audio system
+        function initAudioSystem() {
+            if (audioContext) return; // Already initialized
+            
+            try {
+                // Create audio context
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Load notification sound
+                notificationSound = new Audio('/static/sounds/notification.mp3');
+                
+                // Pre-load the sound
+                notificationSound.load();
+                
+                console.log('Audio system initialized');
+                hasUserInteracted = true;
+            } catch (e) {
+                console.error('Could not initialize audio system:', e);
+            }
+        }
+        
+        // Initialize on first user interaction
+        document.addEventListener('click', function() {
+            if (!hasUserInteracted) {
+                initAudioSystem();
+            }
+        }, {once: false});
+        
+        // Global function to play notification sound
+        window.playNotificationSound = function() {
+            if (!hasUserInteracted) {
+                console.log('Cannot play sound - waiting for user interaction');
+                return;
+            }
+            
+            if (notificationSound) {
+                // Reset the audio to the beginning if it's already playing
+                notificationSound.currentTime = 0;
+                
+                // Play and handle errors properly
+                notificationSound.play().catch(error => {
+                    console.error('Failed to play notification sound:', error);
+                });
+            }
+        };
+    </script>
     
     <!-- Notification WebSocket Script -->
     <script>
@@ -377,13 +430,8 @@
                         });
                     }
 
-                    // Play notification sound
-                    try {
-                        const audio = new Audio('/static/sounds/notification.mp3');
-                        audio.play();
-                    } catch (e) {
-                        console.log('Could not play notification sound');
-                    }
+                    // Play notification sound using our new function
+                    window.playNotificationSound();
                 };
 
                 notificationSocket.onclose = function (e) {
