@@ -243,6 +243,17 @@ class ThreadConsumer(AsyncWebsocketConsumer):
     # Receive message from WebSocket
     async def receive(self, text_data):
         data = json.loads(text_data)
+        
+        # Check if message key exists before accessing it
+        if 'message' not in data:
+            # Log the invalid data format
+            print(f"Received invalid data format: {data}")
+            # Optionally send an error message back to client
+            await self.send(text_data=json.dumps({
+                'error': 'Invalid message format. Message key is required.'
+            }))
+            return
+            
         message = data['message']
         user_id = data['user_id']
         parent_id = data.get('parent_id')  # Optional for replies
