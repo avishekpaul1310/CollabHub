@@ -276,12 +276,15 @@
 <script src="{% static 'js/read-receipts.js' %}"></script>
 <script src="{% static 'js/websocket-manager.js' %}"></script>
 {{ thread.id|json_script:"thread-id" }}
+{{ work_item.pk|json_script:"work-item-id" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Set up improved WebSocket connection
     const threadId = JSON.parse(document.getElementById('thread-id').textContent);
+    const workItemId = JSON.parse(document.getElementById('work-item-id').textContent); // Get work item ID from the template context
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const wsUrl = `${wsProtocol}${window.location.host}/ws/thread/${threadId}/`;
+    // Update URL to match the routing pattern
+    const wsUrl = `${wsProtocol}${window.location.host}/ws/thread/${workItemId}/${threadId}/`;
     
     // Create WebSocket connection with custom handlers
     const threadSocket = window.webSocketManager.createConnection(wsUrl, {

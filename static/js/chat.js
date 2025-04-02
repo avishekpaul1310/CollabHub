@@ -22,8 +22,35 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial scroll to bottom
     scrollToBottom();
     
-    // Initialize text message WebSocket
-    initializeChatWebSocket();
+    // Initialize text message WebSocket using WebSocketManager
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const wsUrl = `${wsProtocol}${window.location.host}/ws/chat/${workItemId}/`;
+    
+    const chatSocket = window.webSocketManager.createConnection(wsUrl, {
+        debug: true,
+        onOpen: () => {
+            console.log('Chat WebSocket connected');
+            // Update UI to show connection status if needed
+        },
+        onClose: () => {
+            console.log('Chat WebSocket closed');
+        },
+        onError: (error) => {
+            console.error('Chat WebSocket error:', error);
+        }
+    });
+    
+    // Connect to WebSocket
+    chatSocket.connect();
+    
+    // Register message handler
+    chatSocket.on('message', function(data) {
+        addMessageToChat(data.message, data.username, new Date(data.timestamp || Date.now()));
+        scrollToBottom();
+    });
+    
+    // Store socket instance for sending messages
+    window.chatSocket = chatSocket;
     
     // Set up form submission handler
     const chatForm = document.getElementById('chat-form');
@@ -37,53 +64,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('file-input');
     if (fileInput) {
         fileInput.addEventListener('change', handleFileSelection);
-    }
-    
-    /**
-     * Initialize WebSocket for text messages
-     */
-    function initializeChatWebSocket() {
-        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        let chatSocket;
-        
-        try {
-            chatSocket = new WebSocket(
-                wsScheme + '://' + window.location.host + '/ws/chat/' + workItemId + '/'
-            );
-            
-            chatSocket.onmessage = function(e) {
-                try {
-                    const data = JSON.parse(e.data);
-                    addMessageToChat(data.message, data.username, new Date(data.timestamp || Date.now()));
-                    scrollToBottom();
-                } catch (error) {
-                    console.error('Error processing message:', error);
-                }
-            };
-            
-            chatSocket.onopen = function(e) {
-                console.log('Chat WebSocket connection established');
-                // Update UI to show connection status if needed
-            };
-            
-            chatSocket.onclose = function(e) {
-                console.error('Chat socket closed unexpectedly:', e.code, e.reason);
-                // In a real app, we'd attempt to reconnect
-                setTimeout(() => {
-                    console.log('Attempting to reconnect...');
-                    initializeChatWebSocket();
-                }, 3000);
-            };
-            
-            chatSocket.onerror = function(e) {
-                console.error('WebSocket error:', e);
-            };
-            
-            // Store socket instance for sending messages
-            window.chatSocket = chatSocket;
-        } catch (error) {
-            console.error('Error initializing WebSocket:', error);
-        }
     }
     
     /**
