@@ -73,6 +73,13 @@ def send_notification(notification):
             notification.save()
             return
             
+        # Check if this is from a muted thread
+        if hasattr(notification, 'thread') and notification.thread and preferences.muted_threads.filter(id=notification.thread.id).exists():
+            # Save but mark as from muted thread
+            notification.is_from_muted = True
+            notification.save()
+            return
+            
         # Check notification mode
         if preferences.notification_mode == 'none':
             notification.save()
