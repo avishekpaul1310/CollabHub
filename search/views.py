@@ -22,19 +22,19 @@ logger = logging.getLogger(__name__)
 def search_view(request):
     """Main search view with advanced filters"""
     # Debug the incoming request
-    print("==== SEARCH REQUEST ====")
-    print("Request method:", request.method)
-    print("Request GET parameters:", request.GET)
-    print("Request headers:", request.headers)
+    logger.debug("==== SEARCH REQUEST ====")
+    logger.debug("Request method: %s", request.method)
+    logger.debug("Request GET parameters: %s", request.GET)
+    logger.debug("Request headers: %s", request.headers)
 
     query = request.GET.get('q', '')
     form = AdvancedSearchForm(request.GET)
     
     # Debug form validation
     if form.is_valid():
-        print("Form is valid, cleaned data:", form.cleaned_data)
+        logger.debug("Form is valid, cleaned data: %s", form.cleaned_data)
     else:
-        print("Form validation errors:", form.errors)
+        logger.debug("Form validation errors: %s", form.errors)
 
     # Get saved searches for the user
     saved_searches = SavedSearch.objects.filter(user=request.user)
@@ -54,7 +54,7 @@ def search_view(request):
     channels = []
     
     if query or form.is_valid() and any(form.cleaned_data.values()):
-        print(f"Processing search for query: '{query}'")
+        logger.debug("Processing search for query: '%s'", query)
         # Track search in history
         log_search(request, query, request.GET.dict(), 0)
         
@@ -62,14 +62,14 @@ def search_view(request):
         filters = {}
         if form.is_valid():
             filters = form.cleaned_data
-            print("Applied filters:", filters)  # Debug
+            logger.debug("Applied filters: %s", filters)
         
         # Get content types to filter by (from form or default to all)
         content_types = filters.get('content_types', ['work_item', 'message', 'thread', 'file', 'channel'])
         if not content_types:
             content_types = ['work_item', 'message', 'thread', 'file', 'channel']
             
-        print("Selected content types for search:", content_types)
+        logger.debug("Selected content types for search: %s", content_types)
         
         # Perform filtered searches based on content types
         if 'work_item' in content_types:
@@ -92,12 +92,12 @@ def search_view(request):
             channels = search_channels(request.user, query, filters)
             channels_count = channels.count()
         
-        # After performing the searches, add these debug prints
-        print("Work items count:", work_items_count)
-        print("Messages count:", messages_count)
-        print("Threads count:", threads_count)
-        print("Files count:", files_count)
-        print("Channels count:", channels_count)
+        # After performing the searches, add these debug logs
+        logger.debug("Work items count: %d", work_items_count)
+        logger.debug("Messages count: %d", messages_count)
+        logger.debug("Threads count: %d", threads_count)
+        logger.debug("Files count: %d", files_count)
+        logger.debug("Channels count: %d", channels_count)
         
         # Combine and format results
         results = []
@@ -178,20 +178,20 @@ def search_view(request):
         total_results = len(results)
 
         # After sorting results
-        print(f"Total results found: {len(results)}")
-        print(f"First 3 results: {[r['title'] for r in results[:3] if results]}")
+        logger.debug("Total results found: %d", len(results))
+        logger.debug("First 3 results: %s", [r['title'] for r in results[:3] if results])
         
         # Update the search log with the count
         update_search_log(request, query, request.GET.dict(), total_results)
     else:
-        print("No search performed - empty query or invalid form")
+        logger.debug("No search performed - empty query or invalid form")
     
     # Pagination
     paginator = Paginator(results, 20)  # 20 results per page
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
     
-    print(f"Showing page {page_obj.number} of {paginator.num_pages}")
+    logger.debug("Showing page %d of %d", page_obj.number, paginator.num_pages)
         
     # Get recent searches
     recent_searches = SearchLog.objects.filter(user=request.user).order_by('-timestamp')[:5]
@@ -212,7 +212,7 @@ def search_view(request):
     
     # Return just the results for AJAX requests
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        print("Handling AJAX request - returning partial results")
+        logger.debug("Handling AJAX request - returning partial results")
         result_html = render(request, 'search/partials/search_results.html', context).content.decode('utf-8')
         return JsonResponse({
             'html': result_html,
@@ -224,7 +224,7 @@ def search_view(request):
             'channels': channels_count,
         })
     
-    print(f"Rendering template with {len(results)} results, showing first 3: {[result.get('title', 'No title') for result in results[:3]]}")
+    logger.debug("Rendering template with %d results, showing first 3: %s", len(results), [result.get('title', 'No title') for result in results[:3]])
     return render(request, 'search/search.html', context)
 
 def search_work_items(user, query, filters=None):
@@ -233,14 +233,14 @@ def search_work_items(user, query, filters=None):
         filters = {}
         
     # Debug line
-    print("Searching work items with filters:", filters)
+    logger.debug("Searching work items with filters: %s", filters)
     
     # Base query: user must be owner or collaborator
     items = WorkItem.objects.filter(
         Q(owner=user) | Q(collaborators=user)
     ).distinct()
     
-    print("Initial query count:", items.count())  # Debug
+    logger.debug("Initial query count: %d", items.count())
     
     # Apply text search if query provided
     if query:
@@ -248,13 +248,13 @@ def search_work_items(user, query, filters=None):
             Q(title__icontains=query) | 
             Q(description__icontains=query)
         )
-        print("After query filter count:", items.count())  # Debug
+        logger.debug("After query filter count: %d", items.count())
     
     # Apply filters
     if filters.get('type'):
-        print(f"Filtering by type: {filters['type']}")  # Debug
+        logger.debug("Filtering by type: %s", filters['type'])
         items = items.filter(type=filters['type'])
-        print("After type filter count:", items.count())  # Debug
+        logger.debug("After type filter count: %d", items.count())
         
     if filters.get('owner'):
         # Look up owner by username
@@ -565,7 +565,7 @@ def log_search(request, query, filters, count=0):
             results_count=count
         )
     except Exception as e:
-        logger.error(f"Error logging search: {str(e)}")
+        logger.error("Error logging search: %s", str(e))
 
 def update_search_log(request, query, filters, count):
     """Update the most recent search log with the result count"""
@@ -584,7 +584,7 @@ def update_search_log(request, query, filters, count):
             recent_log.results_count = count
             recent_log.save()
     except Exception as e:
-        logger.error(f"Error updating search log: {str(e)}")
+        logger.error("Error updating search log: %s", str(e))
 
 @login_required
 def saved_search_list(request):
