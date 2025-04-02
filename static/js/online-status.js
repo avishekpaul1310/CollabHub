@@ -1,5 +1,4 @@
 // Enhanced online-status.js with Work-Life Balance features
-// This updates your existing static/js/online-status.js file
 
 let onlineStatusEnabled = false;
 let statusUpdateInterval = null;
