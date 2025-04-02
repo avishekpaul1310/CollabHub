@@ -19,6 +19,7 @@ def send_notification(notification):
     """
     user = notification.user
     work_item = notification.work_item
+    thread = notification.thread if hasattr(notification, 'thread') else None
     
     # Handle notification based on priority
     if notification.priority == 'urgent':
@@ -48,7 +49,7 @@ def send_notification(notification):
         # For normal priority, respect DND and working hours
         if notification.priority == 'normal':
             # Skip if the user has DND enabled or if this is outside work hours
-            if not preferences.should_notify():
+            if not preferences.should_notify(work_item, thread):
                 # Mark the notification as delayed
                 notification.is_delayed = True
                 notification.save()
@@ -57,7 +58,7 @@ def send_notification(notification):
         # For low priority, we could implement batching or additional delay
         elif notification.priority == 'low':
             # Skip if outside work hours or delay for batch processing
-            if not preferences.should_notify():
+            if not preferences.should_notify(work_item, thread):
                 notification.is_delayed = True
                 notification.save()
                 return
@@ -74,7 +75,7 @@ def send_notification(notification):
             return
             
         # Check if this is from a muted thread
-        if hasattr(notification, 'thread') and notification.thread and preferences.muted_threads.filter(id=notification.thread.id).exists():
+        if thread and preferences.muted_threads.filter(id=thread.id).exists():
             # Save but mark as from muted thread
             notification.is_from_muted = True
             notification.save()

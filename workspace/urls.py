@@ -23,6 +23,7 @@ urlpatterns = [
     # Add the missing notification_preferences URL
     path('notifications/preferences/', views.notification_preferences, name='notification_preferences'),
     path('notifications/toggle-mute/<int:pk>/', views.toggle_mute_work_item, name='toggle_mute_work_item'),
+    path('notifications/toggle-mute-thread/<int:pk>/', views.toggle_mute_thread, name='toggle_mute_thread'),
 
     # Scheduled Message URLs
     path('work-item/<int:work_item_pk>/schedule-message/', views.schedule_message, name='schedule_message'),

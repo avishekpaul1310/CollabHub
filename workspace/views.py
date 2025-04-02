@@ -414,107 +414,134 @@ def schedule_message(request, work_item_pk, thread_pk=None, parent_message_pk=No
     thread = None
     parent_message = None
     
-    # Get thread if applicable
+    # Check if this is a thread message
     if thread_pk:
         thread = get_object_or_404(Thread, pk=thread_pk, work_item=work_item)
-        # Check if user has access to this thread
+        
+        # Check if user has permission to view this thread
         if not thread.user_can_access(request.user):
-            messages.error(request, "You don't have permission to schedule messages in this thread.")
+            messages.error(request, "You don't have permission to access this thread.")
             return redirect('work_item_detail', pk=work_item.pk)
     
-    # Get parent message if applicable
+    # Check if this is a reply to a specific message
     if parent_message_pk:
         parent_message = get_object_or_404(Message, pk=parent_message_pk)
-        # Ensure the parent message belongs to the right thread/work item
-        if (thread and parent_message.thread != thread) or parent_message.work_item != work_item:
-            messages.error(request, "Invalid parent message.")
-            return redirect('work_item_detail', pk=work_item.pk)
+        
+        # Ensure parent message belongs to the right thread
+        if thread and parent_message.thread != thread:
+            messages.error(request, "Invalid parent message for this thread.")
+            return redirect('thread_detail', work_item_pk=work_item.pk, thread_pk=thread.pk)
     
     if request.method == 'POST':
         form = ScheduledMessageForm(
             request.POST, 
-            sender=request.user,
+            sender=request.user, 
             work_item=work_item,
             thread=thread,
             parent_message=parent_message
         )
         
         if form.is_valid():
-            scheduled_msg = form.save()
+            scheduled_message = form.save()
+            messages.success(request, f"Message scheduled for {scheduled_message.scheduled_time.strftime('%Y-%m-%d %H:%M')}")
             
-            # Success message with scheduled time
-            from django.utils import timezone
-            from django.conf import settings
-            
-            # Format the time in user's timezone if available, otherwise use server timezone
-            local_time = scheduled_msg.scheduled_time
-            if hasattr(request, 'timezone'):
-                local_time = timezone.localtime(scheduled_msg.scheduled_time, timezone=request.timezone)
-            
-            # Format the time
-            formatted_time = local_time.strftime('%b %d, %Y at %I:%M %p')
-            messages.success(request, f"Message scheduled for {formatted_time}")
-            
-            # Redirect to the appropriate page
+            # Redirect based on context
             if thread:
                 return redirect('thread_detail', work_item_pk=work_item.pk, thread_pk=thread.pk)
             else:
                 return redirect('work_item_detail', pk=work_item.pk)
     else:
-        # Suggest a good default time - work hours next day or after weekend
-        import datetime
-        from django.utils import timezone
-        
-        now = timezone.now()
-        suggestion = now + datetime.timedelta(days=1)
-        
-        # If it's Friday, schedule for Monday
-        if suggestion.weekday() >= 4:  # Friday(4), Saturday(5) or Sunday(6)
-            # Add days to get to Monday
-            days_to_add = 7 - suggestion.weekday() + 1 if suggestion.weekday() == 6 else 8 - suggestion.weekday()
-            suggestion = now + datetime.timedelta(days=days_to_add)
-        
-        # Set to 9 AM
-        suggestion = suggestion.replace(hour=9, minute=0, second=0, microsecond=0)
-        
-        # Initialize form with suggested time
         form = ScheduledMessageForm(
-            sender=request.user,
+            sender=request.user, 
             work_item=work_item,
             thread=thread,
-            parent_message=parent_message,
-            initial={'scheduled_time': suggestion}
+            parent_message=parent_message
         )
+    
+    # Set appropriate title based on context
+    if parent_message:
+        title = "Schedule Reply"
+    elif thread:
+        title = "Schedule Thread Message"
+    else:
+        title = "Schedule Message"
     
     context = {
         'form': form,
         'work_item': work_item,
         'thread': thread,
         'parent_message': parent_message,
-        'title': 'Schedule Message'
+        'title': title
     }
+    
     return render(request, 'workspace/schedule_message_form.html', context)
 
 @login_required
 def my_scheduled_messages(request):
-    """View to list and manage all scheduled messages for the current user"""
-    # Get all pending scheduled messages
+    """View to list user's scheduled messages"""
     scheduled_messages = ScheduledMessage.objects.filter(
         sender=request.user,
         is_sent=False
     ).order_by('scheduled_time')
     
-    # Get all sent scheduled messages (limited to recent ones)
-    sent_messages = ScheduledMessage.objects.filter(
-        sender=request.user,
-        is_sent=True
-    ).order_by('-sent_at')[:20]  # Limit to 20 most recent
+    context = {
+        'scheduled_messages': scheduled_messages,
+        'title': 'My Scheduled Messages'
+    }
+    
+    return render(request, 'workspace/my_scheduled_messages.html', context)
+
+@login_required
+def cancel_scheduled_message(request, pk):
+    """View to cancel a scheduled message"""
+    scheduled_message = get_object_or_404(ScheduledMessage, pk=pk, sender=request.user, is_sent=False)
+    
+    if request.method == 'POST':
+        scheduled_message.delete()
+        messages.success(request, "Scheduled message canceled.")
+        return redirect('my_scheduled_messages')
+        
+    context = {
+        'scheduled_message': scheduled_message
+    }
+    
+    return render(request, 'workspace/scheduled_message_confirm_delete.html', context)
+
+@login_required
+def edit_scheduled_message(request, pk):
+    """View to edit a scheduled message"""
+    scheduled_message = get_object_or_404(ScheduledMessage, pk=pk, sender=request.user, is_sent=False)
+    
+    if request.method == 'POST':
+        form = ScheduledMessageForm(
+            request.POST, 
+            instance=scheduled_message,
+            sender=request.user,
+            work_item=scheduled_message.work_item,
+            thread=scheduled_message.thread,
+            parent_message=scheduled_message.parent_message
+        )
+        
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Scheduled message updated.")
+            return redirect('my_scheduled_messages')
+    else:
+        form = ScheduledMessageForm(
+            instance=scheduled_message,
+            sender=request.user,
+            work_item=scheduled_message.work_item,
+            thread=scheduled_message.thread,
+            parent_message=scheduled_message.parent_message
+        )
     
     context = {
-        'pending_messages': scheduled_messages,
-        'sent_messages': sent_messages,
+        'form': form,
+        'scheduled_message': scheduled_message,
+        'title': 'Edit Scheduled Message'
     }
-    return render(request, 'workspace/my_scheduled_messages.html', context)
+    
+    return render(request, 'workspace/schedule_message_form.html', context)
 
 @login_required
 def cancel_scheduled_message(request, pk):
