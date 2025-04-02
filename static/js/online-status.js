@@ -23,7 +23,7 @@ function fetchUserPreferences() {
     fetch('/api/user/work_life_balance_preferences/')
         .then(response => {
             if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
+                return fetch('/api/user/online-status-preference/');
             }
             return response.json();
         })
@@ -59,10 +59,16 @@ function fetchUserPreferences() {
         })
         .catch(error => {
             console.error('Error fetching work-life balance preferences:', error);
-            // Still enable basic online status
-            if (onlineStatusEnabled) {
-                setupOnlineTracking();
-            }
+            // Still try to enable basic online status
+            fetch('/api/user/online-status-preference/')
+                .then(response => response.json())
+                .then(data => {
+                    onlineStatusEnabled = data.show_online_status;
+                    if (onlineStatusEnabled) {
+                        setupOnlineTracking();
+                    }
+                })
+                .catch(err => console.error('Failed to fetch online status preference:', err));
         });
 }
 

@@ -10,7 +10,7 @@ class Profile(models.Model):
         return f'{self.user.username} Profile'
     
 class OnlineStatus(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='users_online_status')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='online_status')
     status = models.CharField(max_length=20, default='offline')
     status_message = models.CharField(max_length=255, blank=True, null=True)
     last_activity = models.DateTimeField(auto_now=True)

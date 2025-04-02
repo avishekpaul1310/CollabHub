@@ -1053,11 +1053,23 @@ def leave_slow_channel(request, channel_pk):
 def get_online_status_preference(request):
     """API endpoint to get current user's online status preference"""
     try:
+        # First try to get from notification preferences
         try:
             preferences = request.user.notification_preferences
             show_online_status = preferences.show_online_status
-        except:
-            show_online_status = False
+        except AttributeError:
+            # Fall back to the workspace online status if it exists
+            try:
+                status = request.user.workspace_online_status
+                show_online_status = status.status != 'offline'
+            except AttributeError:
+                # Then try the users app online status
+                try:
+                    status = request.user.online_status
+                    show_online_status = status.status != 'offline'
+                except AttributeError:
+                    # No status models found, default to False
+                    show_online_status = False
             
         return JsonResponse({
             'status': 'success',
