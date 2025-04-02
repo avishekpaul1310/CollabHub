@@ -180,6 +180,43 @@
             border-color: var(--primary-color);
             box-shadow: 0 0 0 0.2rem rgba(74, 111, 220, 0.25);
         }
+
+        /* WebSocket connection indicator */
+        .connection-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .connection-status.online {
+            background-color: #28a745;
+        }
+        .connection-status.connecting {
+            background-color: #ffc107;
+        }
+        .connection-status.offline {
+            background-color: #dc3545;
+        }
+        
+        /* Debug panel - uncomment for debugging */
+        /*
+        .debug-panel {
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            width: 300px;
+            height: 200px;
+            background: rgba(0,0,0,0.8);
+            color: #00ff00;
+            overflow: auto;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            z-index: 9999;
+            border-top-left-radius: 5px;
+        }
+        */
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -216,6 +253,12 @@
             
                 <ul class="navbar-nav">
                     {% if user.is_authenticated %}
+                    <!-- Connection Status Indicator -->
+                    <li class="nav-item d-flex align-items-center me-3">
+                        <span id="ws-connection-status" class="connection-status offline" title="WebSocket Connection Status"></span>
+                        <span id="ws-connection-text" class="text-white small">Connecting...</span>
+                    </li>
+                    
                     <!-- Work-Life Balance Dropdown -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="workLifeDropdown" role="button" data-bs-toggle="dropdown">
@@ -325,14 +368,47 @@
             <div class="container mt-4">
                 {% if messages %}
                 {% for message in messages %}
-                <div class="alert alert-{{ message.tags }}">
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
                     {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
                 {% endfor %}
                 {% endif %}
             
                 {% block content %}{% endblock %}
             </div>
+    
+    <!-- Enhanced JavaScript Error Handling -->
+    <script>
+        // Error logging enhancement
+        console.originalError = console.error;
+        console.error = function() {
+            // Call the original console.error
+            console.originalError.apply(console, arguments);
+            
+            // Log to debug panel if it exists
+            const debugPanel = document.getElementById('debug-panel');
+            if (debugPanel) {
+                const errorMessage = Array.from(arguments).join(' ');
+                const errorElement = document.createElement('div');
+                errorElement.className = 'debug-error';
+                errorElement.textContent = `ERROR: ${errorMessage}`;
+                debugPanel.appendChild(errorElement);
+                debugPanel.scrollTop = debugPanel.scrollHeight;
+            }
+        };
+        
+        // Global error handler
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error(`Global error: ${message} at ${source}:${lineno}:${colno}`);
+            return false; // Let the browser handle the error too
+        };
+        
+        // Unhandled promise rejection handler
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error(`Unhandled Promise Rejection: ${event.reason}`);
+        });
+    </script>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -390,68 +466,220 @@
         };
     </script>
     
-    <!-- Notification WebSocket Script -->
+    <!-- Improved Notification WebSocket Script -->
     <script>
-        // Check if user is authenticated (this will be evaluated by Django)
-        const isAuthenticated = "{{ user.is_authenticated }}" === "True";
+        // Check if user is authenticated
+        const isAuthenticated = "{% if user.is_authenticated %}true{% else %}false{% endif %}" === "true";
+        let notificationSocket = null;
+        let reconnectTimeout = null;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 10;
+        
+        // Update connection status indicator
+        function updateConnectionStatus(status, message) {
+            const statusIndicator = document.getElementById('ws-connection-status');
+            const statusText = document.getElementById('ws-connection-text');
+            
+            if (statusIndicator && statusText) {
+                // Remove all classes
+                statusIndicator.classList.remove('online', 'connecting', 'offline');
+                
+                // Add appropriate class
+                statusIndicator.classList.add(status);
+                statusText.textContent = message;
+            }
+        }
 
         if (isAuthenticated) {
             // Setup WebSocket connection for notifications
             const setupNotificationSocket = () => {
+                if (reconnectAttempts >= maxReconnectAttempts) {
+                    console.error('Maximum WebSocket reconnection attempts reached');
+                    updateConnectionStatus('offline', 'Connection failed');
+                    return;
+                }
+                
+                updateConnectionStatus('connecting', 'Connecting...');
+                
                 const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-                const notificationSocket = new WebSocket(
-                    wsProtocol + window.location.host + '/ws/notifications/'
-                );
+                const wsUrl = wsProtocol + window.location.host + '/ws/notifications/';
+                
+                // Close existing socket if any
+                if (notificationSocket) {
+                    notificationSocket.onclose = null; // Prevent the close handler from triggering
+                    notificationSocket.close();
+                }
+                
+                try {
+                    notificationSocket = new WebSocket(wsUrl);
+                    
+                    notificationSocket.onopen = function(e) {
+                        console.log('Notification WebSocket connection established');
+                        reconnectAttempts = 0; // Reset reconnect counter on successful connection
+                        updateConnectionStatus('online', 'Connected');
+                        
+                        // Start heartbeat
+                        startHeartbeat();
+                    };
 
-                notificationSocket.onopen = function (e) {
-                    console.log('Notification WebSocket connection established');
-                };
+                    notificationSocket.onmessage = function(e) {
+                        try {
+                            const data = JSON.parse(e.data);
+                            
+                            // Handle heartbeat response
+                            if (data.type === 'heartbeat_response') {
+                                console.log('Heartbeat acknowledged');
+                                return;
+                            }
+                            
+                            console.log('Notification received:', data);
 
-                notificationSocket.onmessage = function (e) {
-                    const data = JSON.parse(e.data);
-                    console.log('Notification received:', data);
+                            // Update the notification badge
+                            const badge = document.querySelector('#notification-badge');
+                            if (badge) {
+                                if (data.count > 0) {
+                                    badge.textContent = data.count;
+                                    badge.classList.remove('d-none');
+                                } else {
+                                    badge.classList.add('d-none');
+                                }
+                            }
 
-                    // Update the notification badge
-                    const badge = document.querySelector('#notification-badge');
-                    if (badge) {
-                        if (data.count > 0) {
-                            badge.textContent = data.count;
-                            badge.classList.remove('d-none');
-                        } else {
-                            badge.classList.add('d-none');
+                            // Show a browser notification
+                            if (Notification.permission === 'granted') {
+                                const notification = new Notification('CollabHub', {
+                                    body: data.message,
+                                    icon: '/static/images/logo.png'
+                                });
+                                
+                                // Auto-close after 5 seconds
+                                setTimeout(() => notification.close(), 5000);
+                                
+                                // Handle notification click
+                                notification.onclick = function() {
+                                    window.focus();
+                                    this.close();
+                                };
+                            }
+
+                            // Play notification sound
+                            window.playNotificationSound();
+                            
+                            // Optionally: update the notification dropdown content
+                            refreshNotificationDropdown();
+                        } catch (error) {
+                            console.error('Error handling WebSocket message:', error);
+                        }
+                    };
+
+                    notificationSocket.onclose = function(e) {
+                        console.log('Notification WebSocket connection closed:', e.code, e.reason);
+                        updateConnectionStatus('offline', 'Disconnected');
+                        
+                        // Don't try to reconnect if the socket was closed intentionally
+                        if (e.code !== 1000) {
+                            // Try to reconnect after increasing delay (exponential backoff)
+                            reconnectAttempts++;
+                            const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 30000);
+                            
+                            console.log(`Attempting to reconnect in ${Math.round(delay/1000)}s (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
+                            updateConnectionStatus('connecting', `Reconnecting (${reconnectAttempts})...`);
+                            
+                            if (reconnectTimeout) {
+                                clearTimeout(reconnectTimeout);
+                            }
+                            
+                            reconnectTimeout = setTimeout(setupNotificationSocket, delay);
+                        }
+                    };
+
+                    notificationSocket.onerror = function(error) {
+                        console.error('WebSocket error:', error);
+                    };
+                } catch (error) {
+                    console.error('Error creating WebSocket:', error);
+                    updateConnectionStatus('offline', 'Connection error');
+                    
+                    // Try to reconnect
+                    reconnectAttempts++;
+                    const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 30000);
+                    
+                    if (reconnectTimeout) {
+                        clearTimeout(reconnectTimeout);
+                    }
+                    
+                    reconnectTimeout = setTimeout(setupNotificationSocket, delay);
+                }
+            };
+            
+            // Heartbeat to keep connection alive and detect disconnections
+            let heartbeatInterval = null;
+            
+            function startHeartbeat() {
+                if (heartbeatInterval) {
+                    clearInterval(heartbeatInterval);
+                }
+                
+                heartbeatInterval = setInterval(() => {
+                    if (notificationSocket && notificationSocket.readyState === WebSocket.OPEN) {
+                        try {
+                            notificationSocket.send(JSON.stringify({ type: 'heartbeat' }));
+                        } catch (error) {
+                            console.error('Error sending heartbeat:', error);
+                            // If sending fails, try to reconnect
+                            if (notificationSocket) {
+                                notificationSocket.close();
+                            }
+                        }
+                    } else if (notificationSocket && notificationSocket.readyState !== WebSocket.CONNECTING) {
+                        // If socket is not open and not connecting, try to reconnect
+                        console.log('WebSocket not open during heartbeat check');
+                        if (notificationSocket) {
+                            notificationSocket.close();
                         }
                     }
-
-                    // Show a browser notification
-                    if (Notification.permission === 'granted') {
-                        new Notification('CollabHub', {
-                            body: data.message,
-                            icon: '/static/images/logo.png'
-                        });
-                    }
-
-                    // Play notification sound using our new function
-                    window.playNotificationSound();
-                };
-
-                notificationSocket.onclose = function (e) {
-                    console.log('Notification WebSocket connection closed');
-                    // Try to reconnect after 5 seconds
-                    setTimeout(setupNotificationSocket, 5000);
-                };
-            };
+                }, 30000); // Every 30 seconds
+            }
+            
+            // Function to refresh notification dropdown content
+            function refreshNotificationDropdown() {
+                // This could be implemented with an AJAX call to get updated notifications
+                // For now, we're just relying on page refresh
+            }
 
             // Initialize the notification system
-            document.addEventListener('DOMContentLoaded', function () {
+            document.addEventListener('DOMContentLoaded', function() {
                 setupNotificationSocket();
 
                 // Request permission for browser notifications
                 if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-                    Notification.requestPermission();
+                    Notification.requestPermission().then(function(permission) {
+                        if (permission === 'granted') {
+                            console.log('Notification permission granted');
+                        }
+                    });
                 }
+            });
+            
+            // Handle page visibility changes
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') {
+                    // Page is now visible, check connection and reconnect if needed
+                    if (!notificationSocket || notificationSocket.readyState !== WebSocket.OPEN) {
+                        console.log('Page visible, reconnecting WebSocket');
+                        setupNotificationSocket();
+                    }
+                }
+            });
+            
+            // Reconnect on network status change
+            window.addEventListener('online', function() {
+                console.log('Network online, reconnecting WebSocket');
+                setupNotificationSocket();
             });
         }
     </script>
+    
     {% block extra_js %}{% endblock %}
     {% if user.is_authenticated %}
     <script src="{% static 'js/online-status.js' %}"></script>
@@ -489,5 +717,11 @@
         });
     </script>
     {% endif %}
+    
+    <!-- Uncomment for debugging panel 
+    <div id="debug-panel" class="debug-panel">
+        <div>Debug Messages:</div>
+    </div>
+    -->
     </body>
     </html>
