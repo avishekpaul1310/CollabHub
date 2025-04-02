@@ -617,7 +617,7 @@ class BreakEvent(models.Model):
 
 class UserOnlineStatus(models.Model):
     """Model to store user online status persistently across sessions"""
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='online_status')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='workspace_online_status')
     status = models.CharField(
         max_length=20, 
         choices=[
