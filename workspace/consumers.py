@@ -19,6 +19,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
 
         await self.accept()
+        print(f"WebSocket connected: {self.room_group_name}")
 
     async def disconnect(self, close_code):
         # Leave room group
@@ -26,84 +27,117 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.room_group_name,
             self.channel_name
         )
+        print(f"WebSocket disconnected: {self.room_group_name}, code: {close_code}")
 
     # Receive message from WebSocket
     async def receive(self, text_data):
-        data = json.loads(text_data)
-        message = data['message']
-        user_id = data['user_id']
+        try:
+            data = json.loads(text_data)
+            message = data['message']
+            user_id = data['user_id']
+            
+            print(f"Message received: {message[:20]}... from user {user_id}")
 
-        # Save the message to the database
-        message_obj = await self.save_message(user_id, message)
+            # Save the message to the database
+            message_obj = await self.save_message(user_id, message)
 
-        # Create notifications for all collaborators except the sender
-        # await self.create_notifications(message_obj, user_id)
-        
-        # Format timestamp for display
-        timestamp = message_obj.created_at.strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Get username
-        username = await self.get_username(user_id)
-        
-        # Send message to room group
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                'type': 'chat_message',
+            # Create notifications for all collaborators except the sender
+            await self.create_notifications(message_obj, user_id)
+            
+            # Format timestamp for display
+            timestamp = message_obj.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Get username
+            username = await self.get_username(user_id)
+            
+            # Send message to room group
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'chat_message',
+                    'message': message,
+                    'user_id': user_id,
+                    'username': username,
+                    'timestamp': timestamp
+                }
+            )
+            print(f"Message sent to group: {self.room_group_name}")
+            
+        except Exception as e:
+            print(f"Error in receive method: {str(e)}")
+            # Optionally send error message back to client
+            await self.send(text_data=json.dumps({
+                'error': str(e)
+            }))
+
+    # Receive message from room group
+    async def chat_message(self, event):
+        try:
+            message = event['message']
+            user_id = event['user_id']
+            username = event['username']
+            timestamp = event['timestamp']
+            
+            # Send message to WebSocket
+            await self.send(text_data=json.dumps({
                 'message': message,
                 'user_id': user_id,
                 'username': username,
                 'timestamp': timestamp
-            }
-        )
-
-    # Receive message from room group
-    async def chat_message(self, event):
-        message = event['message']
-        user_id = event['user_id']
-        username = event['username']
-        timestamp = event['timestamp']
-        
-        # Send message to WebSocket
-        await self.send(text_data=json.dumps({
-            'message': message,
-            'user_id': user_id,
-            'username': username,
-            'timestamp': timestamp
-        }))
+            }))
+            print(f"Message delivered to client: {message[:20]}...")
+            
+        except Exception as e:
+            print(f"Error in chat_message method: {str(e)}")
     
     @database_sync_to_async
     def save_message(self, user_id, message):
-        user = User.objects.get(pk=user_id)
-        work_item = WorkItem.objects.get(pk=self.work_item_id)
-        return Message.objects.create(
-            work_item=work_item,
-            user=user,
-            content=message
-        )
+        try:
+            user = User.objects.get(pk=user_id)
+            work_item = WorkItem.objects.get(pk=self.work_item_id)
+            return Message.objects.create(
+                work_item=work_item,
+                user=user,
+                content=message
+            )
+        except Exception as e:
+            print(f"Error saving message: {str(e)}")
+            raise
         
     @database_sync_to_async
     def get_username(self, user_id):
-        user = User.objects.get(pk=user_id)
-        return user.username
+        try:
+            user = User.objects.get(pk=user_id)
+            return user.username
+        except User.DoesNotExist:
+            return "Unknown User"
         
-    """@database_sync_to_async
+    @database_sync_to_async
     def create_notifications(self, message_obj, sender_id):
-        sender = User.objects.get(pk=sender_id)
-        work_item = message_obj.work_item
-        
-        # Create notifications for owner and all collaborators except the message sender
-        recipients = set([work_item.owner] + list(work_item.collaborators.all()))
-        
-        for recipient in recipients:
-            # Don't notify the sender
-            if recipient.id != int(sender_id):
+        try:
+            sender = User.objects.get(pk=sender_id)
+            work_item = message_obj.work_item
+            
+            # Create notifications for owner and all collaborators except the message sender
+            recipients = set()
+            if work_item.owner.id != int(sender_id):
+                recipients.add(work_item.owner)
+            
+            collaborators = work_item.collaborators.exclude(id=sender_id)
+            recipients.update(collaborators)
+
+            print(f"Creating notifications for {len(recipients)} recipients")
+            
+            for recipient in recipients:
                 Notification.objects.create(
                     user=recipient,
                     message=f"{sender.username} sent a message in '{work_item.title}'",
                     work_item=work_item,
                     notification_type='message'
-                )"""
+                )
+                print(f"Notification created for {recipient.username}")
+        except Exception as e:
+            print(f"Error creating notifications: {str(e)}")
 
 class FileConsumer(AsyncWebsocketConsumer):
     async def connect(self):
