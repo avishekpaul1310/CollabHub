@@ -426,7 +426,20 @@ function checkWorkingHours() {
 }
 
 function isWithinWorkingHours() {
-    const now = new Date();
+    // Get server-provided time zone offset if available
+    const serverTzOffset = document.querySelector('meta[name="server-tz-offset"]')?.getAttribute('content');
+    
+    // Use either server time zone or local time
+    let now;
+    if (serverTzOffset !== undefined) {
+        // Create date adjusted to server time zone
+        const localNow = new Date();
+        const localOffset = localNow.getTimezoneOffset() * 60000;
+        now = new Date(localNow.getTime() + localOffset + (parseInt(serverTzOffset) * 60000));
+    } else {
+        now = new Date();
+    }
+    
     const day = now.getDay(); // 0 is Sunday, 1 is Monday, etc.
     const time = now.getHours() * 60 + now.getMinutes(); // Current time in minutes since midnight
     
