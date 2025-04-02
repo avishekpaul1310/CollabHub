@@ -1555,26 +1555,38 @@ def record_break_taken(request):
 
 @login_required
 def manually_run_scheduled_messages(request):
-    """View to manually trigger the scheduled messages task (for testing only)"""
+    """View to manually trigger the scheduled messages task"""
     if not request.user.is_superuser:
         messages.error(request, "This action is only available to superusers.")
         return redirect('dashboard')
     
     try:
-        # Get all due messages
         now = timezone.now()
         due_messages = ScheduledMessage.objects.filter(
             is_sent=False, 
             scheduled_time__lte=now
         )
         
-        # Process each message
         sent_count = 0
-        for message in due_messages:
-            if message.send():
-                sent_count += 1
+        errors = []
         
-        messages.success(request, f"Successfully sent {sent_count} scheduled messages.")
+        for message in due_messages:
+            try:
+                if message.send():
+                    sent_count += 1
+                else:
+                    errors.append(f"Failed to send message #{message.id}")
+            except Exception as e:
+                errors.append(f"Error with message #{message.id}: {str(e)}")
+        
+        if sent_count > 0:
+            messages.success(request, f"Successfully sent {sent_count} scheduled messages.")
+        else:
+            messages.warning(request, "No messages were sent.")
+            
+        if errors:
+            for error in errors[:5]:  # Show first 5 errors
+                messages.error(request, error)
     except Exception as e:
         messages.error(request, f"Error sending scheduled messages: {str(e)}")
     
