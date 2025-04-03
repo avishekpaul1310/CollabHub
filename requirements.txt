@@ -24,7 +24,7 @@ hyperlink
 idna
 incremental
 kombu
-libmagic
+python-magic-bin
 lxml
 python-magic
 msgpack
