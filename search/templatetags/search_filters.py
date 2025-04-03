@@ -1,4 +1,5 @@
 from django import template
+from django.utils.safestring import mark_safe
 import re
 
 register = template.Library()
@@ -32,7 +33,7 @@ def highlight(text, query):
         flags=re.IGNORECASE
     )
     
-    return template.mark_safe(highlighted)
+    return mark_safe(highlighted)
 
 @register.filter
 def truncate_middle(text, length):
@@ -42,9 +43,11 @@ def truncate_middle(text, length):
     
     # Determine length of start and end portions
     half_length = (length - 3) // 2
+    start_length = half_length + (length - 3) % 2  # Add the remainder to the start
+    end_length = half_length
     
     # Truncate in the middle
-    return text[:half_length] + '...' + text[-half_length:]
+    return text[:start_length] + '...' + text[-end_length:]
 
 @register.filter
 def file_icon_class(filename):
