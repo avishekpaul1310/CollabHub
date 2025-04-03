@@ -15,8 +15,8 @@ from unittest.mock import patch, MagicMock
 from workspace.models import WorkItem, Message, Thread, FileAttachment, SlowChannel
 from search.models import SavedSearch, SearchLog, FileIndex
 from search.forms import AdvancedSearchForm, SavedSearchForm, FileIndexForm
-from search.views import search_view, index_file, search_work_items, search_messages, search_files, search_threads
-from search.indexing import extract_text_from_file_in_chunks
+from search.views import search_view, search_work_items, search_messages, search_files, search_threads
+from search.indexing import extract_text_from_file_in_chunks, index_file
 
 
 class SearchModelsTests(TestCase):
