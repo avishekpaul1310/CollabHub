@@ -683,6 +683,7 @@
     {% block extra_js %}{% endblock %}
     {% if user.is_authenticated %}
     <script src="{% static 'js/online-status.js' %}"></script>
+    <script src="{% static 'js/afk-mode-toggle.js' %}"></script>
     <!-- Work-Life Balance JavaScript -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -710,9 +711,22 @@
                     } else {
                         console.log('Toggling AFK status...');
                         alert('AFK mode toggled!');
-                        // You'll need to implement the actual AFK functionality
+                        // Fallback handled by afk-mode-toggle.js
                     }
                 });
+            }
+            
+            // Initialize break reminder service when available
+            if (typeof BreakReminderService === 'function') {
+                if (!window.workLifeBalance) {
+                    window.workLifeBalance = {};
+                }
+                
+                if (!window.workLifeBalance.breakReminder) {
+                    window.workLifeBalance.breakReminder = new BreakReminderService();
+                    window.workLifeBalance.breakReminder.init();
+                    console.log('Break reminder service initialized');
+                }
             }
         });
     </script>

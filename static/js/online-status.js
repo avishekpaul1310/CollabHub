@@ -247,7 +247,11 @@ function updateAfkIndicator(isAfk) {
     }
 }
 
+// Enhance toggleAfkStatus function to improve integration with UI
 function toggleAfkStatus() {
+    // Update localStorage to maintain state across page loads
+    localStorage.setItem('userAfkMode', userStatus !== 'afk');
+    
     if (userStatus === 'afk') {
         // Turn off AFK
         userStatus = 'active';
@@ -266,6 +270,23 @@ function toggleAfkStatus() {
             afkTimeoutId = null;
         }
     }
+    
+    // Notify about status change
+    const title = userStatus === 'afk' ? 'AFK Mode Enabled' : 'AFK Mode Disabled';
+    const message = userStatus === 'afk' ? 
+        'Your status is now set to Away From Keyboard' : 
+        'Your status is now Active';
+    
+    if (Notification.permission === 'granted') {
+        const notification = new Notification(title, {
+            body: message,
+            icon: '/static/img/logo.png'
+        });
+        
+        setTimeout(() => notification.close(), 5000);
+    }
+    
+    return userStatus === 'afk';
 }
 
 function setupBreakReminders(frequency) {
@@ -504,11 +525,21 @@ function isWithinWorkingHours() {
     }
 }
 
-// Export functions for use in other modules
+// Enhance window.workLifeBalance to better support UI integration
 window.workLifeBalance = {
-    toggleAfkStatus,
-    takeBreak,
-    showBreakReminder
+    toggleAfkStatus, // Use the existing function for toggling AFK status
+    startBreak: takeBreak, // Alias for takeBreak function
+    showBreakReminder,
+    
+    // Check if user is currently in AFK mode
+    isAfk: function() {
+        return userStatus === 'afk';
+    },
+    
+    // Get current user status
+    getStatus: function() {
+        return userStatus;
+    }
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -531,13 +562,12 @@ document.addEventListener('DOMContentLoaded', function() {
         updateAfkIndicator(true);
     }
     
-    // Expose the toggle function globally for easier access
-    if (typeof window.workLifeBalance !== 'undefined') {
-        // Function is already exposed via window.workLifeBalance.toggleAfkStatus
-        console.log('AFK toggle function available via window.workLifeBalance.toggleAfkStatus');
-    } else {
-        // As fallback, expose directly
-        window.toggleAfkStatus = toggleAfkStatus;
-        console.log('AFK toggle function exposed directly via window.toggleAfkStatus');
+    // Initialize from localStorage if available
+    const storedAfkStatus = localStorage.getItem('userAfkMode');
+    if (storedAfkStatus === 'true' && userStatus !== 'afk') {
+        // Set to AFK mode based on stored preference
+        userStatus = 'afk';
+        updateStatusOnServer('afk', awayMessage);
+        updateAfkIndicator(true);
     }
 });
