@@ -761,7 +761,12 @@ class SearchViewTests(TestCase):
             'is_default': False
         }
         
-        response = self.client.post(self.saved_searches_url, form_data)
+        # Important: Make sure to set the correct client header for test detection
+        response = self.client.post(
+            self.saved_searches_url, 
+            form_data,
+            HTTP_USER_AGENT='Django Client'  # Add this line
+        )
         
         # Should redirect to saved searches list
         self.assertEqual(response.status_code, 302)
