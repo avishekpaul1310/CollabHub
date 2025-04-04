@@ -73,6 +73,12 @@ class Notification(models.Model):
     # Is this notification read?
     is_read = models.BooleanField(default=False)
     
+    is_delayed = models.BooleanField(default=False)
+    is_from_muted = models.BooleanField(default=False)
+    is_focus_filtered = models.BooleanField(default=False)
+    is_sent = models.BooleanField(default=False)
+    is_batched = models.BooleanField(default=False)
+    
     # When was this notification created
     created_at = models.DateTimeField(auto_now_add=True)
     
