@@ -216,9 +216,20 @@ class NotificationPreference(models.Model):
         current_weekday = str(now.weekday() + 1)  # 1 is Monday in our system
         current_time = now.time()
         
+        # Convert string times to datetime.time objects if they are strings
+        work_start = self.work_start_time
+        if isinstance(work_start, str):
+            h, m = map(int, work_start.split(':'))
+            work_start = datetime.time(h, m)
+            
+        work_end = self.work_end_time
+        if isinstance(work_end, str):
+            h, m = map(int, work_end.split(':'))
+            work_end = datetime.time(h, m)
+        
         in_work_hours = (
             current_weekday in self.work_days and
-            self.work_start_time <= current_time <= self.work_end_time
+            work_start <= current_time <= work_end
         )
         
         # If outside work hours and not in a special channel, don't notify
