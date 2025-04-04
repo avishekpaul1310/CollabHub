@@ -568,9 +568,18 @@ class SearchViewTests(TestCase):
     
     def test_search_view_unauthenticated(self):
         """Test that unauthenticated user is redirected from search"""
+        # Clear any existing session
+        self.client.logout()
+        
+        # Get the search URL
         response = self.client.get(self.search_url)
+        
+        # Check that user is redirected to login page
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(response.url.startswith(reverse('login')))
+        
+        # Verify redirect URL starts with login URL
+        login_url = reverse('login')
+        self.assertTrue(response.url.startswith(login_url))
     
     def test_search_view_authenticated_no_query(self):
         """Test search view for authenticated user with no query"""
