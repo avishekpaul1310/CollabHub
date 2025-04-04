@@ -120,21 +120,29 @@ class UserFormsTests(TestCase):
 
     def test_profile_update_form_with_image(self):
         """Test ProfileUpdateForm with image upload"""
-        # Create a simple uploaded file for testing
+        # Create a better test image with correct content type
+        image_content = b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x00\x00\x00\x21\xf9\x04\x01\x0a\x00\x01\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x4c\x01\x00\x3b'
         image = SimpleUploadedFile(
-            "test_image.jpg",
-            b"file_content",
-            content_type="image/jpeg"
+            "test_image.gif",
+            image_content,
+            content_type="image/gif"
         )
+        
         form_data = {
             'bio': 'Bio with image'
         }
+        
+        form_files = {
+            'avatar': image
+        }
+        
         form = ProfileUpdateForm(
             data=form_data,
-            files={'avatar': image},
+            files=form_files,
             instance=self.user.profile
         )
-        self.assertTrue(form.is_valid())
+        
+        self.assertTrue(form.is_valid(), f"Form errors: {form.errors}")
 
 
 class UserViewsTests(TestCase):
