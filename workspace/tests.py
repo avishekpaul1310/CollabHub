@@ -12,6 +12,7 @@ import unittest
 import datetime
 import json
 import inspect
+import asyncio
 from workspace.consumers import ChatConsumer
 
 from workspace.models import (
@@ -428,29 +429,28 @@ class WebSocketConsumerTests(TestCase):
     def test_chat_consumer_connect(self):
         """Test ChatConsumer connect method"""
         from workspace.consumers import ChatConsumer
-        
-        # Create a mock instance
-        consumer = MagicMock(spec=ChatConsumer)
+    
+        # Create a consumer instance
+        consumer = ChatConsumer()
+    
+        # Set necessary attributes
         consumer.scope = {'url_route': {'kwargs': {'work_item_id': self.work_item.id}}}
         consumer.channel_name = 'test_channel'
-        consumer.room_group_name = f'chat_{self.work_item.id}'
-        
-        # Mock the channel_layer
-        mock_channel_layer = MagicMock()
-        consumer.channel_layer = mock_channel_layer
-        
-        # Mock the accept method
+    
+        # Mock channel layer and accept method
+        consumer.channel_layer = MagicMock()
         consumer.accept = MagicMock()
-        
-        # Call the original connect method
-        ChatConsumer.connect = MagicMock()
-        consumer.connect = ChatConsumer.connect
-        consumer.connect(consumer)
-        
-        # Verify the mocks were called
+    
+        # Call the connect method
+        asyncio.run(consumer.connect())
+    
+        # Verify that accept was called
         consumer.accept.assert_called_once()
-        mock_channel_layer.group_add.assert_called_with(
-            f'chat_{self.work_item.id}',
+    
+        # Verify group_add was called with correct parameters
+        group_name = f'chat_{self.work_item.id}'
+        consumer.channel_layer.group_add.assert_called_with(
+            group_name,
             consumer.channel_name
         )
 
