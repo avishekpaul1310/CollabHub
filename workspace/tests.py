@@ -425,7 +425,7 @@ class WebSocketConsumerTests(TestCase):
     
     @patch('workspace.consumers.ChatConsumer.channel_layer')
     @patch('workspace.consumers.ChatConsumer.accept')
-    @patch('workspace.consumers.async_to_sync')
+    @patch('channels.layers.async_to_sync')
     def test_chat_consumer_connect(self, mock_async_to_sync, mock_accept, mock_channel_layer):
         """Test ChatConsumer connect method"""
         from workspace.consumers import ChatConsumer
@@ -457,7 +457,7 @@ class WebSocketConsumerTests(TestCase):
     
     @patch('workspace.consumers.ChatConsumer.channel_layer')
     @patch('workspace.consumers.Message.objects.create')
-    @patch('workspace.consumers.async_to_sync')
+    @patch('channels.layers.async_to_sync')
     def test_chat_consumer_receive(
         self, mock_async_to_sync, mock_create_message, mock_channel_layer
     ):
@@ -513,7 +513,7 @@ class WebSocketConsumerTests(TestCase):
     
     @patch('workspace.consumers.ThreadConsumer.channel_layer')
     @patch('workspace.consumers.Message.objects.create')
-    @patch('workspace.consumers.async_to_sync')
+    @patch('channels.layers.async_to_sync')
     def test_thread_consumer_receive(
         self, mock_async_to_sync, mock_create_message, mock_channel_layer
     ):
@@ -577,7 +577,7 @@ class WebSocketConsumerTests(TestCase):
         )
     
     @patch('workspace.consumers.NotificationConsumer.channel_layer')
-    @patch('workspace.consumers.async_to_sync')
+    @patch('channels.layers.async_to_sync')
     def test_notification_consumer_notification_message(
         self, mock_async_to_sync, mock_channel_layer
     ):
@@ -622,7 +622,7 @@ class WebSocketConsumerTests(TestCase):
         self.assertEqual(data['count'], 3)
     
     @patch('workspace.consumers.FileConsumer.channel_layer')
-    @patch('workspace.consumers.async_to_sync')
+    @patch('channels.layers.async_to_sync')
     def test_file_consumer_receive(self, mock_async_to_sync, mock_channel_layer):
         """Test FileConsumer receive method"""
         from workspace.consumers import FileConsumer
