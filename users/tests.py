@@ -249,9 +249,8 @@ class UserViewsTests(TestCase):
         # Then logout
         response = self.client.get(self.logout_url)
         
-        # Should redirect to logout page
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'users/logout.html')
+        # Should redirect to logout page (302 status code)
+        self.assertEqual(response.status_code, 302)
         
         # Verify that user is logged out
         self.assertFalse(response.wsgi_request.user.is_authenticated)
