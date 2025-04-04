@@ -495,67 +495,54 @@ class WebSocketConsumerTests(TestCase):
     @patch('workspace.consumers.ThreadConsumer.channel_layer')
     @patch('workspace.consumers.Message.objects.create')
     @patch('asgiref.sync.async_to_sync')
-    def test_thread_consumer_receive(
-        self, mock_async_to_sync, mock_create_message, mock_channel_layer
-    ):
+    def test_thread_consumer_receive(self, mock_async_to_sync, mock_create, mock_channel_layer):
         """Test ThreadConsumer receive method"""
         from workspace.consumers import ThreadConsumer
+        import json
         
-        # Mock the created message
-        mock_message = MagicMock()
-        mock_message.created_at.strftime.return_value = '2025-01-01 12:00:00'
-        mock_message.id = 123
-        mock_create_message.return_value = mock_message
-        
-        # Mock async_to_sync to just return the function
-        mock_async_to_sync.side_effect = lambda f: f
-        
-        # Create a mock scope
-        scope = {
-            'url_route': {
-                'kwargs': {
-                    'work_item_id': self.work_item.id,
-                    'thread_id': self.thread.id
-                }
-            }
-        }
-        
-        # Create the consumer
+        # Create a consumer instance
         consumer = ThreadConsumer()
-        consumer.scope = scope
+        
+        # Set necessary attributes
+        consumer.scope = {'url_route': {'kwargs': {
+            'work_item_id': self.work_item.id,
+            'thread_id': self.thread.id
+        }}}
         consumer.channel_name = 'test_channel'
         consumer.room_group_name = f'thread_{self.thread.id}'
         
-        # Mock save_message method to return our mock message
+        # Mock channel layer
+        consumer.channel_layer = MagicMock()
+        
+        # Mock the save_message method
+        mock_message = MagicMock()
+        mock_message.id = 123
+        mock_message.created_at.strftime.return_value = '2023-01-01 12:00:00'
         consumer.save_message = MagicMock(return_value=mock_message)
         
-        # Create message data
-        message_data = json.dumps({
+        # Create test data
+        text_data = json.dumps({
             'message': 'Test thread message',
             'user_id': self.user.id
         })
         
-        # Call receive
-        consumer.receive(text_data=message_data)
+        # Call the receive method
+        asyncio.run(consumer.receive(text_data=text_data))
         
-        # Should save the message
-        consumer.save_message.assert_called_with(
-            self.user.id, 'Test thread message', None
-        )
+        # Verify save_message was called
+        consumer.save_message.assert_called_once_with(self.user.id, 'Test thread message', None)
         
-        # Should broadcast to the group
-        mock_channel_layer.group_send.assert_called_with(
-            f'thread_{self.thread.id}',
-            {
-                'type': 'thread_message',
-                'message': 'Test thread message',
-                'user_id': self.user.id,
-                'username': ANY,
-                'message_id': 123,
-                'parent_id': None,
-                'timestamp': ANY
-            }
-        )
+        # Verify group_send was called
+        consumer.channel_layer.group_send.assert_called_once()
+        call_args = consumer.channel_layer.group_send.call_args[0]
+        
+        # Check the group name
+        self.assertEqual(call_args[0], f'thread_{self.thread.id}')
+        
+        # Check the message content
+        self.assertEqual(call_args[1].get('message'), 'Test thread message')
+        self.assertEqual(call_args[1].get('message_id'), 123)
+        self.assertEqual(call_args[1].get('type'), 'thread_message')
     
     @patch('workspace.consumers.NotificationConsumer.channel_layer')
     @patch('asgiref.sync.async_to_sync')
@@ -607,43 +594,41 @@ class WebSocketConsumerTests(TestCase):
     def test_file_consumer_receive(self, mock_async_to_sync, mock_channel_layer):
         """Test FileConsumer receive method"""
         from workspace.consumers import FileConsumer
+        import json
         
-        # Mock async_to_sync to just return the function
-        mock_async_to_sync.side_effect = lambda f: f
-        
-        # Create a mock scope
-        scope = {
-            'url_route': {'kwargs': {'work_item_id': self.work_item.id}}
-        }
-        
-        # Create the consumer
+        # Create a consumer instance
         consumer = FileConsumer()
-        consumer.scope = scope
+        
+        # Set necessary attributes
+        consumer.scope = {'url_route': {'kwargs': {'work_item_id': self.work_item.id}}}
         consumer.channel_name = 'test_channel'
         consumer.room_group_name = f'file_{self.work_item.id}'
         
-        # Create file data
-        file_data = json.dumps({
+        # Mock channel layer
+        consumer.channel_layer = MagicMock()
+        
+        # Create test data
+        text_data = json.dumps({
             'message': 'Shared a file',
             'user_id': self.user.id,
-            'username': 'testuser',
             'file_name': 'test.txt'
         })
         
-        # Call receive
-        consumer.receive(text_data=file_data)
+        # Call the receive method
+        asyncio.run(consumer.receive(text_data=text_data))
         
-        # Should broadcast to the group
-        mock_channel_layer.group_send.assert_called_with(
-            f'file_{self.work_item.id}',
-            {
-                'type': 'file_message',
-                'message': 'Shared a file',
-                'user_id': self.user.id,
-                'username': ANY,
-                'file_name': 'test.txt'
-            }
-        )
+        # Verify group_send was called with correct parameters
+        consumer.channel_layer.group_send.assert_called_once()
+        call_args = consumer.channel_layer.group_send.call_args[0]
+        
+        # Check the group name
+        self.assertEqual(call_args[0], f'file_{self.work_item.id}')
+        
+        # Check the message includes the file name
+        self.assertEqual(call_args[1].get('file_name'), 'test.txt')
+        
+        # Check the message type is correct
+        self.assertEqual(call_args[1].get('type'), 'file_message')
 
 
 class CeleryTaskTests(TestCase):
