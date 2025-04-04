@@ -888,13 +888,24 @@ class NotificationHandlingTests(TestCase):
             owner=self.user
         )
         
-        self.notification_pref = NotificationPreference.objects.create(
+        # Instead of creating a new preference, get or update the existing one
+        self.notification_pref, created = NotificationPreference.objects.get_or_create(
             user=self.user,
-            dnd_enabled=True,
-            dnd_start_time=datetime.time(22, 0),  # 10 PM
-            dnd_end_time=datetime.time(8, 0),     # 8 AM
-            notification_mode='all'
+            defaults={
+                'dnd_enabled': True,
+                'dnd_start_time': datetime.time(22, 0),
+                'dnd_end_time': datetime.time(8, 0),
+                'notification_mode': 'all'
+            }
         )
+        
+        # If it already existed, update it
+        if not created:
+            self.notification_pref.dnd_enabled = True
+            self.notification_pref.dnd_start_time = datetime.time(22, 0)
+            self.notification_pref.dnd_end_time = datetime.time(8, 0)
+            self.notification_pref.notification_mode = 'all'
+            self.notification_pref.save()
         
         self.notification = Notification.objects.create(
             user=self.user,
