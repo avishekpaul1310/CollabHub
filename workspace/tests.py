@@ -546,29 +546,15 @@ class WebSocketConsumerTests(TestCase):
     
     @patch('workspace.consumers.NotificationConsumer.channel_layer')
     @patch('asgiref.sync.async_to_sync')
-    def test_notification_consumer_notification_message(
-        self, mock_async_to_sync, mock_channel_layer
-    ):
+    def test_notification_consumer_notification_message(self):
         """Test NotificationConsumer notification_message method"""
         from workspace.consumers import NotificationConsumer
         
-        # Mock async_to_sync to just return the function
-        mock_async_to_sync.side_effect = lambda f: f
-        
-        # Create mock scope with authenticated user
-        scope = {
-            'user': self.user
-        }
-        
-        # Create a notification event
-        event = {
-            'message': 'Test notification',
-            'count': 3
-        }
-        
-        # Create the consumer
+        # Create a consumer instance
         consumer = NotificationConsumer()
-        consumer.scope = scope
+        
+        # Set scope with user
+        consumer.scope = {'user': self.user}
         
         # Mock the send method
         consumer.send = MagicMock()
@@ -576,15 +562,23 @@ class WebSocketConsumerTests(TestCase):
         # Mock check_notification_preferences to return True
         consumer.check_notification_preferences = MagicMock(return_value=True)
         
+        # Create a notification event
+        event = {
+            'message': 'Test notification',
+            'count': 3
+        }
+        
         # Call notification_message
-        consumer.notification_message(event)
+        asyncio.run(consumer.notification_message(event))
         
-        # Should send notification to WebSocket
-        consumer.send.assert_called_with(text_data=ANY)
+        # Verify the send method was called with the right parameters
+        consumer.send.assert_called_once()
         
-        # Check the JSON content
-        called_args = consumer.send.call_args[1]['text_data']
-        data = json.loads(called_args)
+        # Extract the JSON content from the send call
+        call_args = consumer.send.call_args[1]['text_data']
+        data = json.loads(call_args)
+        
+        # Verify the notification data
         self.assertEqual(data['type'], 'notification')
         self.assertEqual(data['message'], 'Test notification')
         self.assertEqual(data['count'], 3)
