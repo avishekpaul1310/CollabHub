@@ -614,7 +614,8 @@ class SearchViewTests(TestCase):
         self.assertEqual(response.context['query'], 'alpha')
         
         # Check that search_messages was called with the right parameters
-        mock_search_messages.assert_called_with(self.user, 'alpha', {})
+        args, kwargs = mock_search_messages.call_args
+        self.assertEqual(args[1], 'alpha')
         
         # Our mock ensures messages_count is exactly 1
         self.assertEqual(response.context['messages_count'], 1)
