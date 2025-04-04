@@ -11,6 +11,9 @@ from unittest.mock import patch, MagicMock, call, ANY
 import unittest
 import datetime
 import json
+import inspect
+from workspace.consumers import ChatConsumer
+print("ASYNC_TO_SYNC SOURCE:", inspect.getmodule(ChatConsumer.channel_layer.group_add).__name__)
 
 from workspace.models import (
     WorkItem, Message, Thread, ThreadGroup, FileAttachment, Notification, NotificationPreference,
