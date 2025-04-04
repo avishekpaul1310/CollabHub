@@ -913,6 +913,17 @@ class NotificationHandlingTests(TestCase):
         mock_time.time.return_value = datetime.time(14, 0)
         mock_timezone.localtime.return_value = mock_time
         
+        # Get or update the notification preference
+        self.notification_pref.dnd_enabled = False  # Make sure DND is off
+        self.notification_pref.work_days = '12345'  # Weekdays
+        self.notification_pref.work_start_time = datetime.time(9, 0)
+        self.notification_pref.work_end_time = datetime.time(17, 0)
+        self.notification_pref.save()
+        
+        # Make notification normal priority (not urgent)
+        self.notification.priority = 'normal'
+        self.notification.save()
+        
         # Send the notification
         send_notification(self.notification)
         
