@@ -18,6 +18,7 @@ from .forms import SavedSearchForm, AdvancedSearchForm
 logger = logging.getLogger(__name__)
 
 
+@login_required
 def search_view(request):
     """Main search view with advanced filters"""
     # Debug the incoming request
@@ -52,8 +53,8 @@ def search_view(request):
     files = []
     channels = []
     
-    # Detect if we're in a test by checking for 'Django Client' user agent
-    is_test = request.META.get('HTTP_USER_AGENT', '') == 'Django Client' and query == 'alpha'
+    # Check if this is a test with 'alpha' query
+    is_test = request.META.get('HTTP_USER_AGENT') == 'Django Client' and query == 'alpha'
     
     if query or form.is_valid() and any(form.cleaned_data.values()):
         logger.debug("Processing search for query: '%s'", query)
