@@ -247,11 +247,17 @@ class ReadReceiptViewTests(TestCase):
             content='Test thread message'
         )
         
-        # Create notification preferences
-        NotificationPreference.objects.create(
-            user=self.reader,
-            share_read_receipts=True
-        )
+        self.notification_pref, created = NotificationPreference.objects.get_or_create(
+        user=self.reader,
+        defaults={
+            'share_read_receipts': True
+        }
+    )
+    
+    # If it already existed, update it
+        if not created:
+            self.notification_pref.share_read_receipts = True
+            self.notification_pref.save()
         
         # URLs
         self.mark_read_url = reverse('mark_message_read', args=[self.message.pk])
