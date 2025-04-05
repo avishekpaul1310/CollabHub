@@ -127,6 +127,8 @@ def _deliver_notification(notification):
 
 def is_user_mentioned(message, user):
     """Check if a user is mentioned in a message using @ notation"""
+    if not message or not user:
+        return False
     return f"@{user.username}" in message
 
 @receiver(post_save, sender=Message)
