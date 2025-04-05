@@ -13,81 +13,80 @@ logger = logging.getLogger(__name__)
 channel_layer = get_channel_layer()
 
 def send_notification(notification):
-    """
-    Central function to handle notification sending logic.
-    Checks user preferences and sends notifications accordingly.
-    """
-    # Simplified version focused on fixing the focus mode issue
+    """Central function to handle notification sending logic."""
     user = notification.user
     work_item = notification.work_item
     thread = notification.thread if hasattr(notification, 'thread') else None
     
+    print(f"Processing notification ID {notification.id}")
+    
     # Handle notification based on priority
     if notification.priority == 'urgent':
-        # Urgent notifications bypass DND and work hour settings
+        print("Urgent notification - bypassing filters")
         _deliver_notification(notification)
         return
     
     # Check if user should receive notification based on preferences
     try:
         preferences = user.notification_preferences
+        print(f"Found preferences, focus_mode={preferences.focus_mode}")
         
         # FIRST, check for muted state
         if work_item and preferences.muted_channels.filter(id=work_item.id).exists():
-            # Save but mark as from muted channel
-            notification.is_from_muted = True
-            notification.save()
-            return
-            
-        # Check if thread is muted
-        if thread and preferences.muted_threads.filter(id=thread.id).exists():
-            # Save but mark as from muted thread
+            print(f"Work item {work_item.id} is muted")
             notification.is_from_muted = True
             notification.save()
             return
         
         # SECOND, check focus mode
         if preferences.focus_mode:
-            # Get focus work item IDs
-            focus_work_item_ids = list(preferences.focus_work_items.values_list('id', flat=True))
+            # Get focus lists directly
+            focus_work_items = list(preferences.focus_work_items.all())
+            focus_work_item_ids = [item.id for item in focus_work_items]
             
-            # Get focus user IDs
-            focus_user_ids = list(preferences.focus_users.values_list('id', flat=True))
-            
-            print(f"Focus Work Items: {focus_work_item_ids}")
-            print(f"Work Item ID: {work_item.id if work_item else None}")
+            print(f"Focus mode is ON")
+            print(f"Focus work item IDs: {focus_work_item_ids}")
+            print(f"Current work item ID: {work_item.id}")
             
             # Check if work item is in focus list
             allow_notification = False
             
-            if work_item and work_item.id in focus_work_item_ids:
+            if work_item.id in focus_work_item_ids:
+                print(f"Work item {work_item.id} is in focus list")
                 allow_notification = True
-            
+            else:
+                print(f"Work item {work_item.id} is NOT in focus list")
+                
             # Get the sender
             notification_sender = None
-            if hasattr(notification, 'get_sender'):
-                notification_sender = notification.get_sender()
-            elif work_item and hasattr(work_item, 'owner'):
+            if hasattr(work_item, 'owner'):
                 notification_sender = work_item.owner
-            
-            # Check if sender is in focus users
-            if notification_sender and notification_sender.id in focus_user_ids:
-                allow_notification = True
+                
+                if notification_sender:
+                    focus_user_ids = list(preferences.focus_users.values_list('id', flat=True))
+                    print(f"Focus user IDs: {focus_user_ids}")
+                    print(f"Sender ID: {notification_sender.id}")
+                    
+                    if notification_sender.id in focus_user_ids:
+                        print(f"Sender {notification_sender.id} is in focus list")
+                        allow_notification = True
+                    else:
+                        print(f"Sender {notification_sender.id} is NOT in focus list")
             
             # If not from a focused source, filter it
             if not allow_notification:
-                print(f"Filtering notification {notification.id} by focus mode")
-                
-                # Mark as filtered by focus mode
+                print(f"FILTERING: Notification {notification.id} doesn't meet focus criteria")
                 notification.is_focus_filtered = True
                 notification.save()
                 
-                # Print to confirm state
-                print(f"Set is_focus_filtered to True for notification {notification.id}")
+                # Verify save worked
+                notification.refresh_from_db()
+                print(f"After save, is_focus_filtered = {notification.is_focus_filtered}")
                 
-                # IMPORTANT: Return immediately to prevent delivery
                 return
-        
+            
+            print(f"ALLOWING: Notification {notification.id} meets focus criteria")
+
         # THIRD, check normal conditions like DND and work hours  
         if notification.priority == 'normal':
             # Skip if the user has DND enabled or if this is outside work hours
@@ -109,14 +108,13 @@ def send_notification(notification):
             notification.save()
             return
             
-    except (AttributeError, NotificationPreference.DoesNotExist) as e:
+    except Exception as e:
         print(f"Exception in send_notification: {str(e)}")
-        pass  # If no preferences exist, continue with notification
     
     # If we made it here, deliver the notification
-    print(f"Delivering notification {notification.id}")
+    print(f"DELIVERING notification {notification.id}")
     _deliver_notification(notification)
-        
+
 def _deliver_notification(notification):
     """Helper function to deliver a notification via WebSocket"""
     try:
