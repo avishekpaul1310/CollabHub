@@ -57,7 +57,7 @@ def send_notification(notification):
         
         # Skip if the user has muted this work item
         if work_item and preferences.muted_channels.filter(id=work_item.id).exists():
-            # Save but mark as from muted channel
+        # Save but mark as from muted channel
             notification.is_from_muted = True
             notification.save()
             return
