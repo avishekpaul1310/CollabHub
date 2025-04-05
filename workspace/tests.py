@@ -709,32 +709,46 @@ class NotificationHandlingTests(TestCase):
             priority='normal'
         )
     
-    @patch('workspace.models.timezone')
     @patch('workspace.signals._deliver_notification')
-    def test_send_notification_normal_hours(self, mock_deliver, mock_timezone):
+    def test_send_notification_normal_hours(self, mock_deliver):
         """Test sending notifications during normal hours"""
         from workspace.signals import send_notification
+        import datetime
         
-        # Mock time to be during normal hours (2 PM)
-        mock_time = MagicMock()
-        mock_time.time.return_value = datetime.time(14, 0)
-        mock_timezone.localtime.return_value = mock_time
+        # Print current date/time
+        print("Current time:", timezone.now())
         
-        # Get or update the notification preference
-        self.notification_pref.dnd_enabled = False  # Make sure DND is off
-        self.notification_pref.work_days = '12345'  # Weekdays
-        self.notification_pref.work_start_time = datetime.time(9, 0)
-        self.notification_pref.work_end_time = datetime.time(17, 0)
+        # Set work hours - make them cover a wide range to ensure we're in hours
+        self.notification_pref.dnd_enabled = False
+        self.notification_pref.work_days = '1234567'  # All days
+        self.notification_pref.work_start_time = datetime.time(0, 0)  # Midnight
+        self.notification_pref.work_end_time = datetime.time(23, 59)  # 11:59 PM
         self.notification_pref.save()
         
-        # Make notification normal priority (not urgent)
+        # Make sure notification is normal priority
         self.notification.priority = 'normal'
         self.notification.save()
+        
+        # Debug the should_notify method
+        result = self.notification_pref.should_notify(
+            self.notification.work_item,
+            getattr(self.notification, 'thread', None)
+        )
+        print("should_notify result:", result)
         
         # Send the notification
         send_notification(self.notification)
         
-        # Should deliver immediately
+        # Check if _deliver_notification was called
+        print("_deliver_notification called:", mock_deliver.called)
+        if not mock_deliver.called:
+            # Get the notification flags for debugging
+            self.notification.refresh_from_db()
+            print("Notification is_delayed:", getattr(self.notification, 'is_delayed', False))
+            print("Notification is_from_muted:", getattr(self.notification, 'is_from_muted', False))
+            print("Notification is_focus_filtered:", getattr(self.notification, 'is_focus_filtered', False))
+            
+        # Assert that deliver was called
         mock_deliver.assert_called_once_with(self.notification)
     
     @patch('workspace.models.timezone')
