@@ -157,7 +157,97 @@ class MessageReadReceiptModelTests(TestCase):
                 message=self.message,
                 user=self.reader
             )
-
+class FocusModeTestCase(TestCase):
+    """A standalone test case specifically for focus mode filtering"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.user = User.objects.create_user(
+            username='focususer',
+            email='focus@example.com',
+            password='testpassword'
+        )
+        
+        self.work_item = WorkItem.objects.create(
+            title='Test Work Item',
+            description='This is a test work item',
+            type='task',
+            owner=self.user
+        )
+        
+        # Create notification preferences with focus mode enabled
+        self.notification_pref = NotificationPreference.objects.create(
+            user=self.user,
+            focus_mode=True
+        )
+        
+        # Create a focus work item
+        self.focus_work_item = WorkItem.objects.create(
+            title='Focus Work Item',
+            type='task',
+            owner=self.user
+        )
+        
+        # Add to focus list
+        self.notification_pref.focus_work_items.add(self.focus_work_item)
+    
+    def test_focus_mode_filtering(self):
+        """Test that notifications are filtered when in focus mode"""
+        # Create a non-focus work item
+        non_focus = WorkItem.objects.create(
+            title='Non-Focus Item',
+            type='task',
+            owner=self.user
+        )
+        
+        # Create a notification for the non-focus item
+        notification = Notification.objects.create(
+            user=self.user,
+            message='Test notification',
+            work_item=non_focus,
+            notification_type='message'
+        )
+        
+        # Track if deliver was called
+        deliver_called = [False]
+        
+        # Define a mock delivery function
+        def mock_deliver(n):
+            deliver_called[0] = True
+            print("Mock delivery called!")
+        
+        # Save original function
+        import workspace.signals
+        original = workspace.signals._deliver_notification
+        
+        try:
+            # Replace with mock
+            workspace.signals._deliver_notification = mock_deliver
+            
+            # Debug focus mode state
+            print(f"Focus mode enabled: {self.notification_pref.focus_mode}")
+            print(f"Focus work items: {list(self.notification_pref.focus_work_items.values_list('id', flat=True))}")
+            print(f"Non-focus work item ID: {non_focus.id}")
+            
+            # Call the function
+            workspace.signals.send_notification(notification)
+            
+            # Refresh from database
+            notification.refresh_from_db()
+            
+            # Debug state after call
+            print(f"is_focus_filtered: {notification.is_focus_filtered}")
+            print(f"deliver_called: {deliver_called[0]}")
+            
+            # Check that it was filtered
+            self.assertTrue(notification.is_focus_filtered)
+            
+            # Check that delivery wasn't called
+            self.assertFalse(deliver_called[0])
+            
+        finally:
+            # Restore original function
+            workspace.signals._deliver_notification = original
 
 class UserOnlineStatusTests(TestCase):
     """Tests for UserOnlineStatus model"""
