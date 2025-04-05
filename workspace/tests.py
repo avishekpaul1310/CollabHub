@@ -175,11 +175,12 @@ class FocusModeTestCase(TestCase):
             owner=self.user
         )
         
-        # Create notification preferences with focus mode enabled
-        self.notification_pref = NotificationPreference.objects.create(
-            user=self.user,
-            focus_mode=True
-        )
+        # Get the existing notification preference that was created by the signal
+        self.notification_pref = NotificationPreference.objects.get(user=self.user)
+        
+        # Update it to enable focus mode
+        self.notification_pref.focus_mode = True
+        self.notification_pref.save()
         
         # Create a focus work item
         self.focus_work_item = WorkItem.objects.create(
@@ -228,6 +229,10 @@ class FocusModeTestCase(TestCase):
             print(f"Focus mode enabled: {self.notification_pref.focus_mode}")
             print(f"Focus work items: {list(self.notification_pref.focus_work_items.values_list('id', flat=True))}")
             print(f"Non-focus work item ID: {non_focus.id}")
+            
+            # Force a refresh of notification preferences to ensure focus mode is enabled
+            self.notification_pref.refresh_from_db()
+            print(f"Double check focus mode: {self.notification_pref.focus_mode}")
             
             # Call the function
             workspace.signals.send_notification(notification)
