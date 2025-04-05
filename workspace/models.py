@@ -239,13 +239,15 @@ class NotificationPreference(models.Model):
         else:
             work_end = self.work_end_time
         
+        # Check if now is within work hours
         in_work_hours = (
             current_weekday in self.work_days and
             work_start <= current_time <= work_end
         )
         
-        # If outside work hours and not in a special channel, don't notify
-        if not in_work_hours and work_item and not getattr(work_item, 'priority', 'normal') == 'high':
+        # Only apply work hours restriction if dnd_enabled is True
+        # This fixes the test where we want to receive notifications anytime
+        if not in_work_hours and self.dnd_enabled and work_item and not getattr(work_item, 'priority', 'normal') == 'high':
             return False
             
         # Check notification mode
@@ -263,10 +265,11 @@ class NotificationPreference(models.Model):
         # Check focus mode
         if self.focus_mode:
             if work_item and not self.focus_work_items.filter(id=work_item.id).exists():
-                return False
-            if work_item and not self.focus_users.filter(id=work_item.owner.id).exists():
-                return False
-                
+                # Only block if the work item is not in the focus list
+                if work_item.owner and not self.focus_users.filter(id=work_item.owner.id).exists():
+                    # And if the owner is not in the focus users list
+                    return False
+                    
         return True
     
 
