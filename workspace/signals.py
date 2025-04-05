@@ -82,15 +82,15 @@ def send_notification(notification):
         
         # THIRD, check normal conditions like DND and work hours  
         if notification.priority == 'normal':
-        # Print debug info
+            # Print debug info
             logger.info(f"DND enabled: {preferences.dnd_enabled}, In DND period: {preferences.is_in_dnd_period()}")
-    
-        # Skip if the user has DND enabled or if this is outside work hours
+        
+            # Skip if the user has DND enabled or if this is outside work hours
             should_notify_result = preferences.should_notify(work_item, thread)
             logger.info(f"Should notify result: {should_notify_result}")
-    
+        
             if not should_notify_result:
-        # Mark the notification as delayed
+                # Mark the notification as delayed
                 notification.is_delayed = True
                 notification.save()
                 logger.info(f"Notification {notification.id} delayed due to preferences")
