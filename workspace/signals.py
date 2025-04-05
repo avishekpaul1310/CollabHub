@@ -112,7 +112,7 @@ def send_notification(notification):
             if not allow_notification:
                 # Clear logging to make sure we understand what's happening
                 sender_id = notification_sender.id if notification_sender else None
-                logger.info(f"Notification should be filtered by focus mode: work_item_id={work_item.id if work_item else None}, sender_id={sender_id}")
+                logger.info(f"Notification {notification.id} should be filtered by focus mode: work_item_id={work_item.id if work_item else None}, sender_id={sender_id}")
                 
                 # Set the flag directly in the database to bypass any ORM issues
                 cursor.execute(
@@ -127,6 +127,7 @@ def send_notification(notification):
                 notification.refresh_from_db()
                 logger.info(f"After refresh, is_focus_filtered = {notification.is_focus_filtered}")
                 
+                # THIS IS THE CRITICAL CHANGE: Return immediately to prevent delivery
                 return
         
         # THIRD, check normal conditions like DND and work hours  
@@ -160,8 +161,9 @@ def send_notification(notification):
         # If no preferences exist, continue with notification
     
     # If we made it here, deliver the notification
+    logger.info(f"Delivering notification {notification.id} to user {user.username}")
     _deliver_notification(notification)
-
+    
 def _deliver_notification(notification):
     """Helper function to deliver a notification via WebSocket"""
     try:
