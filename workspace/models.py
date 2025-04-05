@@ -70,9 +70,7 @@ class Notification(models.Model):
     # Optional link to related thread
     thread = models.ForeignKey('Thread', on_delete=models.CASCADE, null=True, blank=True)
     
-    # Is this notification read?
     is_read = models.BooleanField(default=False)
-    
     is_delayed = models.BooleanField(default=False)
     is_from_muted = models.BooleanField(default=False)
     is_focus_filtered = models.BooleanField(default=False)
