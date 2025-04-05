@@ -719,8 +719,8 @@ class NotificationHandlingTests(TestCase):
         print("\nCurrent time:", timezone.now())
         print("Notification delivery status:", getattr(self.notification, 'is_sent', False))
         
-        # Set work hours
-        self.notification_pref.dnd_enabled = False
+        # Set working hours to be basically 24/7 so the test can run anytime
+        self.notification_pref.dnd_enabled = False  # Turn off DND completely
         self.notification_pref.work_days = '1234567'  # All days
         self.notification_pref.work_start_time = datetime.time(0, 0)  # Midnight
         self.notification_pref.work_end_time = datetime.time(23, 59)  # 11:59 PM
@@ -765,6 +765,13 @@ class NotificationHandlingTests(TestCase):
         mock_time = MagicMock()
         mock_time.time.return_value = datetime.time(23, 0)
         mock_timezone.localtime.return_value = mock_time
+        mock_timezone.now.return_value = datetime.datetime.now()
+        
+        # Ensure DND is enabled
+        self.notification_pref.dnd_enabled = True
+        self.notification_pref.dnd_start_time = datetime.time(22, 0)
+        self.notification_pref.dnd_end_time = datetime.time(8, 0)
+        self.notification_pref.save()
         
         # Send the notification
         send_notification(self.notification)
@@ -858,7 +865,7 @@ class NotificationHandlingTests(TestCase):
         print("Focus work item IDs:", list(self.notification_pref.focus_work_items.values_list('id', flat=True)))
         print("Focus user IDs:", list(self.notification_pref.focus_users.values_list('id', flat=True)))
         
-        # Create a notification from non-focus source
+        # Create a fresh notification from non-focus source
         non_focus_notif = Notification.objects.create(
             user=self.user,
             message='Non-focus notification',
@@ -892,6 +899,6 @@ class NotificationHandlingTests(TestCase):
         
         # Verify deliver wasn't called
         mock_deliver.assert_not_called()
-
+        
 if __name__ == '__main__':
     unittest.main()
