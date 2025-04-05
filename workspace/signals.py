@@ -55,18 +55,6 @@ def send_notification(notification):
                 notification.save()
                 return
         
-        # For low priority, we could implement batching or additional delay
-        elif notification.priority == 'low':
-            # Skip if outside work hours or delay for batch processing
-            if not preferences.should_notify(work_item, thread):
-                notification.is_delayed = True
-                notification.save()
-                return
-            
-            # Could implement batching logic here for low priority
-            # For now, just mark with a flag that could be used by a batching system
-            notification.is_batched = True
-            
         # Skip if the user has muted this work item
         if work_item and preferences.muted_channels.filter(id=work_item.id).exists():
             # Save but mark as from muted channel
