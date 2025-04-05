@@ -213,7 +213,7 @@ class NotificationPreference(models.Model):
         # Check DND period
         if self.is_in_dnd_period():
             return False
-        
+            
         # Check work hours
         from django.utils import timezone
         import datetime
@@ -222,16 +222,24 @@ class NotificationPreference(models.Model):
         current_weekday = str(now.weekday() + 1)  # 1 is Monday in our system
         current_time = now.time()
         
-        # Convert string times to datetime.time objects if necessary
-        work_start = self.work_start_time
-        if isinstance(work_start, str):
-            hour, minute = map(int, work_start.split(':')[:2])
-            work_start = datetime.time(hour, minute)
+        # Convert string times to datetime.time objects if they are strings
+        if isinstance(self.work_start_time, str):
+            try:
+                h, m = map(int, self.work_start_time.split(':')[:2])
+                work_start = datetime.time(h, m)
+            except (ValueError, TypeError):
+                work_start = datetime.time(9, 0)  # Default
+        else:
+            work_start = self.work_start_time
             
-        work_end = self.work_end_time
-        if isinstance(work_end, str):
-            hour, minute = map(int, work_end.split(':')[:2])
-            work_end = datetime.time(hour, minute)
+        if isinstance(self.work_end_time, str):
+            try:
+                h, m = map(int, self.work_end_time.split(':')[:2])
+                work_end = datetime.time(h, m)
+            except (ValueError, TypeError):
+                work_end = datetime.time(17, 0)  # Default
+        else:
+            work_end = self.work_end_time
         
         in_work_hours = (
             current_weekday in self.work_days and
@@ -253,14 +261,14 @@ class NotificationPreference(models.Model):
         # Check muted threads
         if thread and self.muted_threads.filter(id=thread.id).exists():
             return False
-            
+                
         # Check focus mode
         if self.focus_mode:
             if work_item and not self.focus_work_items.filter(id=work_item.id).exists():
                 return False
             if work_item and not self.focus_users.filter(id=work_item.owner.id).exists():
                 return False
-            
+                
         return True
     
 
