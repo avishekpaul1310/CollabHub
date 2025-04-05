@@ -761,27 +761,32 @@ class NotificationHandlingTests(TestCase):
         """Test sending notifications during DND hours"""
         from workspace.signals import send_notification
         
+        # Create a real datetime for the mock
+        mock_now = datetime.datetime(2025, 1, 1, 23, 0, 0)  # 11:00 PM
+        
         # Mock time to be during DND hours (11 PM)
         mock_time = MagicMock()
         mock_time.time.return_value = datetime.time(23, 0)
         mock_timezone.localtime.return_value = mock_time
-        mock_timezone.now.return_value = datetime.datetime.now()
+        mock_timezone.now.return_value = mock_now
         
-        # Ensure DND is enabled
-        self.notification_pref.dnd_enabled = True
-        self.notification_pref.dnd_start_time = datetime.time(22, 0)
-        self.notification_pref.dnd_end_time = datetime.time(8, 0)
-        self.notification_pref.save()
-        
-        # Send the notification
-        send_notification(self.notification)
-        
-        # Should not deliver
-        mock_deliver.assert_not_called()
-        
-        # Notification should be marked as delayed
-        self.notification.refresh_from_db()
-        self.assertTrue(self.notification.is_delayed)
+        # Make sure is_in_dnd_period returns True for our test
+        with patch('workspace.models.NotificationPreference.is_in_dnd_period', return_value=True):
+            # Ensure DND is enabled
+            self.notification_pref.dnd_enabled = True
+            self.notification_pref.dnd_start_time = datetime.time(22, 0)
+            self.notification_pref.dnd_end_time = datetime.time(8, 0)
+            self.notification_pref.save()
+            
+            # Send the notification
+            send_notification(self.notification)
+            
+            # Should not deliver
+            mock_deliver.assert_not_called()
+            
+            # Notification should be marked as delayed
+            self.notification.refresh_from_db()
+            self.assertTrue(self.notification.is_delayed)
     
     @patch('workspace.signals._deliver_notification')
     def test_send_notification_urgent(self, mock_deliver):

@@ -200,11 +200,19 @@ class NotificationPreference(models.Model):
         from django.utils import timezone
         now = timezone.localtime().time()
         
+        # Debug info to help troubleshoot
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"DND check: now={now}, start={self.dnd_start_time}, end={self.dnd_end_time}")
+        
         # Handle case where DND period spans midnight
         if self.dnd_start_time > self.dnd_end_time:
-            return now >= self.dnd_start_time or now <= self.dnd_end_time
+            result = now >= self.dnd_start_time or now <= self.dnd_end_time
         else:
-            return self.dnd_start_time <= now <= self.dnd_end_time
+            result = self.dnd_start_time <= now <= self.dnd_end_time
+            
+        logger.info(f"DND period check result: {result}")
+        return result
     
     def should_notify(self, work_item=None, thread=None):
         """Determine if user should be notified based on preferences"""
