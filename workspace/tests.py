@@ -870,25 +870,60 @@ class NotificationHandlingTests(TestCase):
         print("Focus work item IDs:", list(self.notification_pref.focus_work_items.values_list('id', flat=True)))
         print("Focus user IDs:", list(self.notification_pref.focus_users.values_list('id', flat=True)))
         
+        # To fix race conditions, get the latest IDs from the database
+        focus_work_item_ids = list(self.notification_pref.focus_work_items.values_list('id', flat=True))
+        focus_user_ids = list(self.notification_pref.focus_users.values_list('id', flat=True))
+        
+        # Make sure we're using a separate work item that's definitely not in the focus list
+        non_focus_work_item = None
+        for i in range(1, 10):  # Try a few different IDs to be safe
+            # Skip IDs that are in our focus list
+            if i not in focus_work_item_ids:
+                # Try to get a work item with this ID
+                try:
+                    non_focus_work_item = WorkItem.objects.get(id=i)
+                    # If we found one that's not in our focus list, use it
+                    if non_focus_work_item.id not in focus_work_item_ids:
+                        break
+                except WorkItem.DoesNotExist:
+                    # Create a new work item with this ID
+                    non_focus_work_item = WorkItem.objects.create(
+                        title=f'Non-Focus Work Item {i}',
+                        type='task',
+                        owner=self.user
+                    )
+                    break
+        
+        if not non_focus_work_item:
+            # If we couldn't find a suitable work item, create a new one
+            non_focus_work_item = WorkItem.objects.create(
+                title='Non-Focus Work Item',
+                type='task',
+                owner=self.user
+            )
+        
         # Create a fresh notification from non-focus source
         non_focus_notif = Notification.objects.create(
             user=self.user,
             message='Non-focus notification',
-            work_item=self.work_item,  # Not a focus work item
+            work_item=non_focus_work_item,  # Use our confirmed non-focus work item
             notification_type='message'
         )
         
         # Print work item info
-        print("Non-focus work item ID:", self.work_item.id)
-        print("Work item owner ID:", self.work_item.owner.id if hasattr(self.work_item, 'owner') else None)
+        print("Non-focus work item ID:", non_focus_work_item.id)
+        print("Work item owner ID:", non_focus_work_item.owner.id if hasattr(non_focus_work_item, 'owner') else None)
         
-        # Directly test the focus check logic
-        focus_work_item_exists = self.notification_pref.focus_work_items.filter(id=self.work_item.id).exists()
+        # Directly test the focus check logic - this confirms our work item is not in focus list
+        focus_work_item_exists = self.notification_pref.focus_work_items.filter(id=non_focus_work_item.id).exists()
         print("Work item in focus list:", focus_work_item_exists)
         
-        if hasattr(self.work_item, 'owner'):
-            owner_in_focus = self.notification_pref.focus_users.filter(id=self.work_item.owner.id).exists()
+        if hasattr(non_focus_work_item, 'owner'):
+            owner_in_focus = self.notification_pref.focus_users.filter(id=non_focus_work_item.owner.id).exists()
             print("Owner in focus list:", owner_in_focus)
+        
+        # Double-check focus list again right before sending
+        print("Final focus work item IDs:", list(self.notification_pref.focus_work_items.values_list('id', flat=True)))
         
         # Send the notification
         send_notification(non_focus_notif)

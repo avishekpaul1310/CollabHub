@@ -74,6 +74,11 @@ def send_notification(notification):
             
             # If not from a focused source, filter it
             if not allow_notification:
+                # Clear logging to make sure we understand what's happening
+                logger.info(f"Notification filtered by focus mode: work_item={work_item.id if work_item else None}, sender={notification_sender.id if notification_sender else None}")
+                logger.info(f"Focus work items: {list(preferences.focus_work_items.values_list('id', flat=True))}")
+                logger.info(f"Focus users: {list(preferences.focus_users.values_list('id', flat=True))}")
+                
                 # Save but mark as filtered by focus mode
                 notification.is_focus_filtered = True
                 notification.save()
@@ -107,6 +112,7 @@ def send_notification(notification):
             return
             
     except (AttributeError, NotificationPreference.DoesNotExist):
+        logger.warning(f"User {user.username} has no notification preferences, using defaults")
         pass  # If no preferences exist, continue with notification
     
     # If we made it here, deliver the notification
