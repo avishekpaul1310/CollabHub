@@ -825,9 +825,18 @@ class NotificationHandlingTests(TestCase):
     @patch('workspace.signals._deliver_notification')
     def test_send_notification_focus_mode(self, mock_deliver):
         """Test sending notifications in focus mode"""
+        from workspace.signals import send_notification
+        
         # Enable focus mode
         self.notification_pref.focus_mode = True
         self.notification_pref.save()
+        
+        # Add some debug output
+        print("\nFocus mode enabled:", self.notification_pref.focus_mode)
+        
+        # Get focus items that are currently set
+        print("Focus work items:", list(self.notification_pref.focus_work_items.all()))
+        print("Focus users:", list(self.notification_pref.focus_users.all()))
         
         # Create another user for focus users
         other_user = User.objects.create_user('other', 'other@example.com', 'otherpass')
@@ -845,6 +854,11 @@ class NotificationHandlingTests(TestCase):
         # Add the work item to focus list
         self.notification_pref.focus_work_items.add(focus_work_item)
         
+        # Verify focus lists are updated
+        self.notification_pref.refresh_from_db()
+        print("After adding - Focus work items:", list(self.notification_pref.focus_work_items.all()))
+        print("After adding - Focus users:", list(self.notification_pref.focus_users.all()))
+        
         # Create a notification from non-focus source
         non_focus_notif = Notification.objects.create(
             user=self.user,
@@ -854,11 +868,13 @@ class NotificationHandlingTests(TestCase):
         )
         
         # Send the notification
-        from workspace.signals import send_notification
         send_notification(non_focus_notif)
         
         # Refresh from database
         non_focus_notif.refresh_from_db()
+        
+        # Debug what's happening
+        print("After sending - is_focus_filtered:", getattr(non_focus_notif, 'is_focus_filtered', False))
         
         # Verify it's marked as filtered by focus mode
         self.assertTrue(non_focus_notif.is_focus_filtered)
