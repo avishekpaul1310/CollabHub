@@ -838,11 +838,13 @@ class NotificationHandlingTests(TestCase):
         # Verify deliver wasn't called
         mock_deliver.assert_not_called()
     
-    @patch('workspace.signals._deliver_notification')
-    def test_send_notification_focus_mode_simplified(self):
-        """Simplified test for focus mode filtering that avoids mocking issues"""
+    def test_send_notification_focus_mode_simplified(self, *args):
+        """
+        Simplified test for focus mode filtering that avoids mocking issues.
+        Added *args to handle any extra arguments the test runner might pass.
+        """
         from workspace.signals import send_notification
-        import types
+        # Removed unused import 'types'
         
         # Enable focus mode
         self.notification_pref.focus_mode = True
@@ -891,6 +893,7 @@ class NotificationHandlingTests(TestCase):
         # Define a replacement for _deliver_notification
         def mock_deliver(notification):
             deliver_called[0] = True
+            print("Mock _deliver_notification was called!")
         
         # Use a try/finally to ensure cleanup, replacing the actual function
         try:
@@ -903,15 +906,20 @@ class NotificationHandlingTests(TestCase):
             # Replace with our mock
             workspace.signals._deliver_notification = mock_deliver
             
-            # Call send_notification
+            # Call send_notification directly
             send_notification(non_focus_notif)
             
             # Refresh notification from db
             non_focus_notif.refresh_from_db()
             
+            # Print notification state
+            print("After send_notification:")
+            print(f"is_focus_filtered: {getattr(non_focus_notif, 'is_focus_filtered', False)}")
+            print(f"deliver_called: {deliver_called[0]}")
+            
             # Check if notification was properly marked as focus filtered
             self.assertTrue(getattr(non_focus_notif, 'is_focus_filtered', False), 
-                           "Notification should be marked as filtered by focus mode")
+                            "Notification should be marked as filtered by focus mode")
             
             # Check that delivery was not called
             self.assertFalse(deliver_called[0], 
