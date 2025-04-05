@@ -1,21 +1,62 @@
-MIT License
+# CollabHub Software License Agreement
 
-Copyright (c) 2025 Avishek Paul
+## 1. Definitions
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1.1 "Software" refers to the CollabHub web application and all associated source code, documentation, and related materials.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1.2 "Licensee" means the individual or entity acquiring a license to use the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1.3 "Commercial Use" means using the Software for any business, revenue-generating, or professional purpose.
+
+## 2. License Grant
+
+2.1 Limited Use License
+- The Licensee is granted a non-exclusive, non-transferable license to use the Software solely for internal purposes.
+- No right is granted to redistribute, sell, lease, or sublicense the Software.
+
+2.2 Restrictions
+The Licensee SHALL NOT:
+- Reverse engineer, decompile, or disassemble the Software
+- Create derivative works based on the Software
+- Remove or alter any copyright, trademark, or proprietary notices
+- Use the Software to develop a competing product
+- Sell, resell, rent, lease, or distribute the Software
+- Host the Software as a service for third parties
+
+## 3. Ownership
+
+3.1 The Software is the exclusive intellectual property of the copyright holder.
+
+3.2 All rights not explicitly granted are reserved by the copyright holder.
+
+## 4. Commercial Licensing
+
+4.1 Commercial use requires a separate, paid commercial license agreement.
+
+4.2 Volume and enterprise licensing options are available through direct negotiation.
+
+## 5. Termination
+
+5.1 This license is effective until terminated.
+
+5.2 The license will terminate immediately if the Licensee breaches any terms.
+
+5.3 Upon termination, the Licensee must cease all use of the Software and delete all copies.
+
+## 6. Disclaimer of Warranty
+
+6.1 THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND.
+
+6.2 THE COPYRIGHT HOLDER SHALL NOT BE LIABLE FOR ANY DAMAGES ARISING FROM SOFTWARE USE.
+
+## 7. Governing Law
+
+7.1 This agreement shall be governed by the laws of India, with exclusive jurisdiction vesting in the courts of Kolkata, West Bengal. Any disputes arising from this agreement shall be subject to the jurisdiction of the High Court at Calcutta.
+
+## 8. Contact
+
+For commercial licensing inquiries, contact: avishek-paul@outlook.com
+
+---
+
+© 2025 Avishek Paul. All Rights Reserved.
