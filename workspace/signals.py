@@ -33,20 +33,44 @@ def send_notification(notification):
     try:
         preferences = user.notification_preferences
         
-        # Check focus mode - only allow notifications from selected users and work items
-        if preferences.focus_mode:
-            # Get the user who caused this notification
-            notification_sender = notification.get_sender() if hasattr(notification, 'get_sender') else None
+        # FIRST, check for muted state - this should override other conditions
+        if work_item and preferences.muted_channels.filter(id=work_item.id).exists():
+            # Save but mark as from muted channel
+            notification.is_from_muted = True
+            notification.save()
+            return
             
-            # Only allow notifications from selected users and work items
-            if (notification_sender and notification_sender not in preferences.focus_users.all() and
-                (not work_item or work_item not in preferences.focus_work_items.all())):
+        # Check if thread is muted
+        if thread and preferences.muted_threads.filter(id=thread.id).exists():
+            # Save but mark as from muted thread
+            notification.is_from_muted = True
+            notification.save()
+            return
+        
+        # SECOND, check focus mode
+        if preferences.focus_mode:
+            # For focus mode, we need to check if this is from a selected user or work item
+            allow_notification = False
+            
+            # Check if work item is in focus list
+            if work_item and preferences.focus_work_items.filter(id=work_item.id).exists():
+                allow_notification = True
+                
+            # If we have a sender, check if they're in focus users
+            notification_sender = None
+            if hasattr(work_item, 'owner'):
+                notification_sender = work_item.owner
+                
+            if notification_sender and preferences.focus_users.filter(id=notification_sender.id).exists():
+                allow_notification = True
+                
+            if not allow_notification:
                 # Save but mark as filtered by focus mode
                 notification.is_focus_filtered = True
                 notification.save()
                 return
         
-        # For normal priority, respect DND and working hours
+        # THIRD, check normal conditions like DND and work hours  
         if notification.priority == 'normal':
             # Skip if the user has DND enabled or if this is outside work hours
             if not preferences.should_notify(work_item, thread):
@@ -55,33 +79,20 @@ def send_notification(notification):
                 notification.save()
                 return
         
-        # Skip if the user has muted this work item
-        if work_item and preferences.muted_channels.filter(id=work_item.id).exists():
-        # Save but mark as from muted channel
-            notification.is_from_muted = True
-            notification.save()
-            return
-            
-        # Check if this is from a muted thread
-        if thread and preferences.muted_threads.filter(id=thread.id).exists():
-            # Save but mark as from muted thread
-            notification.is_from_muted = True
-            notification.save()
-            return
-            
-        # Check notification mode
+        # If notification mode is set to none, don't deliver
         if preferences.notification_mode == 'none':
             notification.save()
             return
             
-        if preferences.notification_mode == 'mentions' and not is_user_mentioned(notification.message, user):
+        # If notification mode is set to mentions only and user isn't mentioned, don't deliver
+        if preferences.notification_mode == 'mentions' and not is_user_mentioned(getattr(notification, 'message', ''), user):
             notification.save()
             return
             
     except (AttributeError, NotificationPreference.DoesNotExist):
         pass  # If no preferences exist, continue with notification
     
-    # Deliver the notification
+    # If we made it here, deliver the notification
     _deliver_notification(notification)
 
 def _deliver_notification(notification):
