@@ -842,6 +842,7 @@ class NotificationHandlingTests(TestCase):
     def test_send_notification_focus_mode(self, mock_deliver):
         """Test sending notifications in focus mode"""
         from workspace.signals import send_notification
+        import logging
         
         # Enable focus mode
         self.notification_pref.focus_mode = True
@@ -866,55 +867,43 @@ class NotificationHandlingTests(TestCase):
         # Add the work item to focus list
         self.notification_pref.focus_work_items.add(focus_work_item)
         
+        # Force a database flush/sync to ensure IDs are committed
+        from django.db import connection
+        connection.cursor().execute("SELECT 1")
+        
         # Get the updated focus lists
         print("Focus work item IDs:", list(self.notification_pref.focus_work_items.values_list('id', flat=True)))
         print("Focus user IDs:", list(self.notification_pref.focus_users.values_list('id', flat=True)))
         
-        # To fix race conditions, get the latest IDs from the database
-        focus_work_item_ids = list(self.notification_pref.focus_work_items.values_list('id', flat=True))
-        focus_user_ids = list(self.notification_pref.focus_users.values_list('id', flat=True))
-        
-        # Make sure we're using a separate work item that's definitely not in the focus list
-        non_focus_work_item = None
-        for i in range(1, 10):  # Try a few different IDs to be safe
-            # Skip IDs that are in our focus list
-            if i not in focus_work_item_ids:
-                # Try to get a work item with this ID
-                try:
-                    non_focus_work_item = WorkItem.objects.get(id=i)
-                    # If we found one that's not in our focus list, use it
-                    if non_focus_work_item.id not in focus_work_item_ids:
-                        break
-                except WorkItem.DoesNotExist:
-                    # Create a new work item with this ID
-                    non_focus_work_item = WorkItem.objects.create(
-                        title=f'Non-Focus Work Item {i}',
-                        type='task',
-                        owner=self.user
-                    )
-                    break
-        
-        if not non_focus_work_item:
-            # If we couldn't find a suitable work item, create a new one
-            non_focus_work_item = WorkItem.objects.create(
-                title='Non-Focus Work Item',
-                type='task',
-                owner=self.user
-            )
-        
-        # Create a fresh notification from non-focus source
-        non_focus_notif = Notification.objects.create(
-            user=self.user,
-            message='Non-focus notification',
-            work_item=non_focus_work_item,  # Use our confirmed non-focus work item
-            notification_type='message'
+        # Now create a completely separate work item
+        non_focus_work_item = WorkItem.objects.create(
+            title='Non-Focus Work Item Explicit',
+            description='This should definitely not be in focus',
+            type='task',
+            owner=self.user
         )
         
-        # Print work item info
+        # Verify it was created with a valid ID
         print("Non-focus work item ID:", non_focus_work_item.id)
         print("Work item owner ID:", non_focus_work_item.owner.id if hasattr(non_focus_work_item, 'owner') else None)
         
-        # Directly test the focus check logic - this confirms our work item is not in focus list
+        # Double check the focus work items AFTER creating the non-focus item
+        focus_work_items_after = list(self.notification_pref.focus_work_items.values_list('id', flat=True))
+        print("Focus work items after creating non-focus item:", focus_work_items_after)
+        
+        # Explicitly verify the non-focus work item is NOT in the focus list
+        if non_focus_work_item.id in focus_work_items_after:
+            self.fail(f"Test setup error: work item {non_focus_work_item.id} shouldn't be in focus list {focus_work_items_after}")
+        
+        # Create a notification with the non-focus work item
+        non_focus_notif = Notification.objects.create(
+            user=self.user,
+            message='Non-focus notification explicit',
+            work_item=non_focus_work_item,
+            notification_type='message'
+        )
+        
+        # Directly test the focus check logic
         focus_work_item_exists = self.notification_pref.focus_work_items.filter(id=non_focus_work_item.id).exists()
         print("Work item in focus list:", focus_work_item_exists)
         
@@ -925,14 +914,29 @@ class NotificationHandlingTests(TestCase):
         # Double-check focus list again right before sending
         print("Final focus work item IDs:", list(self.notification_pref.focus_work_items.values_list('id', flat=True)))
         
+        # Configure extra logging for this test
+        logger = logging.getLogger('workspace.signals')
+        logger.setLevel(logging.DEBUG)
+        
         # Send the notification
         send_notification(non_focus_notif)
         
-        # Refresh from database
+        # Refresh from database to ensure we get the latest state
         non_focus_notif.refresh_from_db()
         
         # Print notification state
+        print("After sending - notification ID:", non_focus_notif.id)
         print("After sending - is_focus_filtered:", getattr(non_focus_notif, 'is_focus_filtered', False))
+        
+        # Double check directly from database
+        from django.db import connection
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT is_focus_filtered FROM workspace_notification WHERE id = %s",
+            [non_focus_notif.id]
+        )
+        db_value = cursor.fetchone()[0]
+        print("Database value of is_focus_filtered:", db_value)
         
         # Verify it's marked as filtered by focus mode
         self.assertTrue(non_focus_notif.is_focus_filtered)
