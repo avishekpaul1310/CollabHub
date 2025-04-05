@@ -839,17 +839,14 @@ class NotificationHandlingTests(TestCase):
         mock_deliver.assert_not_called()
     
     @patch('workspace.signals._deliver_notification')
-    def test_send_notification_focus_mode(self, mock_deliver):
-        """Test sending notifications in focus mode"""
+    def test_send_notification_focus_mode_simplified(self):
+        """Simplified test for focus mode filtering that avoids mocking issues"""
         from workspace.signals import send_notification
-        import logging
+        import types
         
         # Enable focus mode
         self.notification_pref.focus_mode = True
         self.notification_pref.save()
-        
-        # Print all notification preferences
-        print("\nAll notification preferences:", self.notification_pref.__dict__)
         
         # Create another user for focus users
         other_user = User.objects.create_user('other', 'other@example.com', 'otherpass')
@@ -871,91 +868,59 @@ class NotificationHandlingTests(TestCase):
         from django.db import connection
         connection.cursor().execute("SELECT 1")
         
-        # Get the updated focus lists
-        print("Focus work item IDs:", list(self.notification_pref.focus_work_items.values_list('id', flat=True)))
-        print("Focus user IDs:", list(self.notification_pref.focus_users.values_list('id', flat=True)))
-        
         # Create a completely separate work item that's not in focus
         non_focus_work_item = WorkItem.objects.create(
-            title='Non-Focus Work Item Final Test',
+            title='Non-Focus Work Item Simplified',
             description='This should definitely not be in focus',
             type='task',
             owner=self.user
         )
         
-        # Force another database sync
-        connection.cursor().execute("SELECT 1")
-        
-        # Verify it was created with a valid ID
-        print("Non-focus work item ID:", non_focus_work_item.id)
-        print("Work item owner ID:", non_focus_work_item.owner.id if hasattr(non_focus_work_item, 'owner') else None)
-        
-        # Double check the focus work items AFTER creating the non-focus item
-        focus_work_items_after = list(self.notification_pref.focus_work_items.values_list('id', flat=True))
-        print("Focus work items after creating non-focus item:", focus_work_items_after)
-        
-        # Explicitly verify the non-focus work item is NOT in the focus list
-        if non_focus_work_item.id in focus_work_items_after:
-            self.fail(f"Test setup error: work item {non_focus_work_item.id} shouldn't be in focus list {focus_work_items_after}")
-        
-        # Clear any existing notifications to ensure a clean state
-        Notification.objects.all().delete()
-        
-        # Create a fresh notification with the non-focus work item
+        # Create a notification with the non-focus work item
         non_focus_notif = Notification.objects.create(
             user=self.user,
-            message='Non-focus notification final test',
+            message='Non-focus notification simplified test',
             work_item=non_focus_work_item,
             notification_type='message'
         )
         
-        # Directly test the focus check logic
-        focus_work_item_exists = self.notification_pref.focus_work_items.filter(id=non_focus_work_item.id).exists()
-        print("Work item in focus list:", focus_work_item_exists)
+        # Flag to track if _deliver_notification was called
+        deliver_called = [False]
+        original_func = None
         
-        if hasattr(non_focus_work_item, 'owner'):
-            owner_in_focus = self.notification_pref.focus_users.filter(id=non_focus_work_item.owner.id).exists()
-            print("Owner in focus list:", owner_in_focus)
+        # Define a replacement for _deliver_notification
+        def mock_deliver(notification):
+            deliver_called[0] = True
         
-        # Configure extra logging for this test
-        logger = logging.getLogger('workspace.signals')
-        logger.setLevel(logging.DEBUG)
-        
-        # Send the notification - HERE IS WHERE THE ISSUE OCCURS
-        send_notification(non_focus_notif)
-        
-        # Force database operations to complete
-        connection.cursor().execute("SELECT 1")
-        
-        # Check directly from the database
-        cursor = connection.cursor()
-        cursor.execute(
-            "SELECT is_focus_filtered FROM workspace_notification WHERE id = %s",
-            [non_focus_notif.id]
-        )
-        db_value = cursor.fetchone()[0]
-        print("Database value of is_focus_filtered:", db_value)
-        
-        # Set the correct value manually if needed (this is a test workaround)
-        if not db_value:
-            cursor.execute(
-                "UPDATE workspace_notification SET is_focus_filtered = %s WHERE id = %s",
-                [True, non_focus_notif.id]
-            )
-        
-        # Reload from database to ensure we get the latest state
-        non_focus_notif = Notification.objects.get(id=non_focus_notif.id)
-        
-        # Print notification state
-        print("After sending - notification ID:", non_focus_notif.id)
-        print("After sending - is_focus_filtered:", non_focus_notif.is_focus_filtered)
-        
-        # Verify it's marked as filtered by focus mode - updated with a direct DB check
-        self.assertTrue(db_value or non_focus_notif.is_focus_filtered, 
-                        "Notification should be filtered by focus mode")
-        
-        # Verify deliver wasn't called
-        mock_deliver.assert_not_called()
+        # Use a try/finally to ensure cleanup, replacing the actual function
+        try:
+            # Import the module directly
+            import workspace.signals
+            
+            # Save the original function
+            original_func = workspace.signals._deliver_notification
+            
+            # Replace with our mock
+            workspace.signals._deliver_notification = mock_deliver
+            
+            # Call send_notification
+            send_notification(non_focus_notif)
+            
+            # Refresh notification from db
+            non_focus_notif.refresh_from_db()
+            
+            # Check if notification was properly marked as focus filtered
+            self.assertTrue(getattr(non_focus_notif, 'is_focus_filtered', False), 
+                           "Notification should be marked as filtered by focus mode")
+            
+            # Check that delivery was not called
+            self.assertFalse(deliver_called[0], 
+                             "Delivery function should not be called for focus-filtered notifications")
+            
+        finally:
+            # Restore the original function
+            if original_func is not None:
+                workspace.signals._deliver_notification = original_func
         
 if __name__ == '__main__':
     unittest.main()
