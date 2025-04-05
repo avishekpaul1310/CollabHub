@@ -142,8 +142,3 @@ Designed for thoughtful, asynchronous communication:
 - Focus mode
 - Break reminders
 - Analytics dashboard
-
-
-## Contributing
-
-[Insert contribution guidelines here]
