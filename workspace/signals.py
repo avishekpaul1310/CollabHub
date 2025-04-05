@@ -53,13 +53,40 @@ def send_notification(notification):
         
         # SECOND, check focus mode
         if preferences.focus_mode:
-            # Get focus lists
-            focus_work_item_ids = list(preferences.focus_work_items.values_list('id', flat=True))
-            focus_user_ids = list(preferences.focus_users.values_list('id', flat=True))
+            # Get focus lists directly from the database to avoid ORM caching issues
+            from django.db import connection
+            cursor = connection.cursor()
+            
+            # Get focus work item IDs
+            cursor.execute(
+                """
+                SELECT W.id 
+                FROM workspace_workitem W
+                JOIN workspace_notificationpreference_focus_work_items F 
+                ON W.id = F.workitem_id
+                WHERE F.notificationpreference_id = %s
+                """,
+                [preferences.id]
+            )
+            focus_work_item_ids = [row[0] for row in cursor.fetchall()]
+            
+            # Get focus user IDs
+            cursor.execute(
+                """
+                SELECT U.id 
+                FROM auth_user U
+                JOIN workspace_notificationpreference_focus_users F 
+                ON U.id = F.user_id
+                WHERE F.notificationpreference_id = %s
+                """,
+                [preferences.id]
+            )
+            focus_user_ids = [row[0] for row in cursor.fetchall()]
             
             # Debug what we're checking against
             logger.info(f"Focus mode check - Work item ID: {work_item.id if work_item else None}")
-            logger.info(f"Focus work item IDs: {focus_work_item_ids}")
+            logger.info(f"Focus work item IDs from DB: {focus_work_item_ids}")
+            logger.info(f"Focus user IDs from DB: {focus_user_ids}")
             
             # For focus mode, we need to check if this is from a selected user or work item
             allow_notification = False
@@ -86,24 +113,20 @@ def send_notification(notification):
                 # Clear logging to make sure we understand what's happening
                 sender_id = notification_sender.id if notification_sender else None
                 logger.info(f"Notification should be filtered by focus mode: work_item_id={work_item.id if work_item else None}, sender_id={sender_id}")
-                logger.info(f"Focus work items: {focus_work_item_ids}")
-                logger.info(f"Focus users: {focus_user_ids}")
                 
-                # Save but mark as filtered by focus mode
-                notification.is_focus_filtered = True
-                notification.save()
-                
-                # Double check that the flag was set
-                from django.db import connection
-                cursor = connection.cursor()
+                # Set the flag directly in the database to bypass any ORM issues
                 cursor.execute(
                     "UPDATE workspace_notification SET is_focus_filtered = %s WHERE id = %s",
                     [True, notification.id]
                 )
                 
-                # Force refresh the notification
-                updated_notification = Notification.objects.get(id=notification.id)
-                logger.info(f"Notification {notification.id} filtered by focus mode, is_focus_filtered={updated_notification.is_focus_filtered}")
+                # Log the SQL update
+                logger.info(f"Directly updated database: SET is_focus_filtered = True WHERE id = {notification.id}")
+                
+                # Refresh the notification to get the new flag value
+                notification.refresh_from_db()
+                logger.info(f"After refresh, is_focus_filtered = {notification.is_focus_filtered}")
+                
                 return
         
         # THIRD, check normal conditions like DND and work hours  
@@ -132,9 +155,9 @@ def send_notification(notification):
             notification.save()
             return
             
-    except (AttributeError, NotificationPreference.DoesNotExist):
-        logger.warning(f"User {user.username} has no notification preferences, using defaults")
-        pass  # If no preferences exist, continue with notification
+    except (AttributeError, NotificationPreference.DoesNotExist) as e:
+        logger.warning(f"User {user.username} has no notification preferences, using defaults. Error: {str(e)}")
+        # If no preferences exist, continue with notification
     
     # If we made it here, deliver the notification
     _deliver_notification(notification)
