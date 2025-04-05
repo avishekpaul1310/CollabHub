@@ -715,21 +715,29 @@ class NotificationHandlingTests(TestCase):
         from workspace.signals import send_notification
         import datetime
         
-        # Print current date/time
-        print("Current time:", timezone.now())
+        # Debug current state
+        print("\nCurrent time:", timezone.now())
+        print("Notification delivery status:", getattr(self.notification, 'is_sent', False))
         
-        # Set work hours - make them cover a wide range to ensure we're in hours
+        # Set work hours
         self.notification_pref.dnd_enabled = False
         self.notification_pref.work_days = '1234567'  # All days
         self.notification_pref.work_start_time = datetime.time(0, 0)  # Midnight
         self.notification_pref.work_end_time = datetime.time(23, 59)  # 11:59 PM
+        self.notification_pref.notification_mode = 'all'  # Accept all notifications
         self.notification_pref.save()
         
-        # Make sure notification is normal priority
+        # Check notification attributes before sending
+        print("Notification attributes before:", self.notification.__dict__)
+        
+        # Make sure notification is set for delivery
         self.notification.priority = 'normal'
+        self.notification.is_delayed = False
+        self.notification.is_from_muted = False
+        self.notification.is_focus_filtered = False
         self.notification.save()
         
-        # Debug the should_notify method
+        # Verify should_notify works
         result = self.notification_pref.should_notify(
             self.notification.work_item,
             getattr(self.notification, 'thread', None)
@@ -739,15 +747,11 @@ class NotificationHandlingTests(TestCase):
         # Send the notification
         send_notification(self.notification)
         
-        # Check if _deliver_notification was called
+        # Refresh the notification to see any changes
+        self.notification.refresh_from_db()
+        print("Notification attributes after:", self.notification.__dict__)
         print("_deliver_notification called:", mock_deliver.called)
-        if not mock_deliver.called:
-            # Get the notification flags for debugging
-            self.notification.refresh_from_db()
-            print("Notification is_delayed:", getattr(self.notification, 'is_delayed', False))
-            print("Notification is_from_muted:", getattr(self.notification, 'is_from_muted', False))
-            print("Notification is_focus_filtered:", getattr(self.notification, 'is_focus_filtered', False))
-            
+        
         # Assert that deliver was called
         mock_deliver.assert_called_once_with(self.notification)
     
@@ -831,12 +835,8 @@ class NotificationHandlingTests(TestCase):
         self.notification_pref.focus_mode = True
         self.notification_pref.save()
         
-        # Add some debug output
-        print("\nFocus mode enabled:", self.notification_pref.focus_mode)
-        
-        # Get focus items that are currently set
-        print("Focus work items:", list(self.notification_pref.focus_work_items.all()))
-        print("Focus users:", list(self.notification_pref.focus_users.all()))
+        # Print all notification preferences
+        print("\nAll notification preferences:", self.notification_pref.__dict__)
         
         # Create another user for focus users
         other_user = User.objects.create_user('other', 'other@example.com', 'otherpass')
@@ -854,10 +854,9 @@ class NotificationHandlingTests(TestCase):
         # Add the work item to focus list
         self.notification_pref.focus_work_items.add(focus_work_item)
         
-        # Verify focus lists are updated
-        self.notification_pref.refresh_from_db()
-        print("After adding - Focus work items:", list(self.notification_pref.focus_work_items.all()))
-        print("After adding - Focus users:", list(self.notification_pref.focus_users.all()))
+        # Get the updated focus lists
+        print("Focus work item IDs:", list(self.notification_pref.focus_work_items.values_list('id', flat=True)))
+        print("Focus user IDs:", list(self.notification_pref.focus_users.values_list('id', flat=True)))
         
         # Create a notification from non-focus source
         non_focus_notif = Notification.objects.create(
@@ -867,13 +866,25 @@ class NotificationHandlingTests(TestCase):
             notification_type='message'
         )
         
+        # Print work item info
+        print("Non-focus work item ID:", self.work_item.id)
+        print("Work item owner ID:", self.work_item.owner.id if hasattr(self.work_item, 'owner') else None)
+        
+        # Directly test the focus check logic
+        focus_work_item_exists = self.notification_pref.focus_work_items.filter(id=self.work_item.id).exists()
+        print("Work item in focus list:", focus_work_item_exists)
+        
+        if hasattr(self.work_item, 'owner'):
+            owner_in_focus = self.notification_pref.focus_users.filter(id=self.work_item.owner.id).exists()
+            print("Owner in focus list:", owner_in_focus)
+        
         # Send the notification
         send_notification(non_focus_notif)
         
         # Refresh from database
         non_focus_notif.refresh_from_db()
         
-        # Debug what's happening
+        # Print notification state
         print("After sending - is_focus_filtered:", getattr(non_focus_notif, 'is_focus_filtered', False))
         
         # Verify it's marked as filtered by focus mode
