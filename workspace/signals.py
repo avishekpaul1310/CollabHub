@@ -49,25 +49,35 @@ def send_notification(notification):
         
         # SECOND, check focus mode
         if preferences.focus_mode:
+            # Debug what we're checking against
+            logger.info(f"Focus mode check - Work item: {work_item}, Focus work items: {list(preferences.focus_work_items.all())}")
+            
             # For focus mode, we need to check if this is from a selected user or work item
             allow_notification = False
             
             # Check if work item is in focus list
             if work_item and preferences.focus_work_items.filter(id=work_item.id).exists():
                 allow_notification = True
-                
-            # If we have a sender, check if they're in focus users
+                logger.info(f"Work item {work_item.id} is in focus list")
+            
+            # Get the sender (this could be different depending on notification type)
             notification_sender = None
-            if hasattr(work_item, 'owner'):
+            if hasattr(notification, 'get_sender'):
+                notification_sender = notification.get_sender()
+            elif work_item and hasattr(work_item, 'owner'):
                 notification_sender = work_item.owner
-                
+            
+            # Check if sender is in focus users
             if notification_sender and preferences.focus_users.filter(id=notification_sender.id).exists():
                 allow_notification = True
-                
+                logger.info(f"Sender {notification_sender.id} is in focus list")
+            
+            # If not from a focused source, filter it
             if not allow_notification:
                 # Save but mark as filtered by focus mode
                 notification.is_focus_filtered = True
                 notification.save()
+                logger.info(f"Notification {notification.id} filtered by focus mode")
                 return
         
         # THIRD, check normal conditions like DND and work hours  
