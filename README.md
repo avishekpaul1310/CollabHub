@@ -143,9 +143,6 @@ Designed for thoughtful, asynchronous communication:
 - Break reminders
 - Analytics dashboard
 
-## License
-
-[Insert your license information here]
 
 ## Contributing
 
