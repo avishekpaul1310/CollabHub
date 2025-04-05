@@ -790,15 +790,31 @@ class NotificationHandlingTests(TestCase):
     @patch('workspace.signals._deliver_notification')
     def test_send_notification_muted_work_item(self, mock_deliver):
         """Test sending notifications for muted work item"""
+        from workspace.signals import send_notification
+        
+        # Debug initial state
+        print("Initial muted channels:", list(self.notification_pref.muted_channels.all()))
+        
         # Mute the work item
         self.notification_pref.muted_channels.add(self.work_item)
+        self.notification_pref.save()
+        
+        # Verify muting worked
+        self.notification_pref.refresh_from_db()
+        print("After adding, muted channels:", list(self.notification_pref.muted_channels.all()))
+        
+        # Make sure notification is normal priority
+        self.notification.priority = 'normal'
+        self.notification.save()
         
         # Send the notification
-        from workspace.signals import send_notification
         send_notification(self.notification)
         
-        # Refresh the notification from the database
+        # Refresh the notification to get updated flags
         self.notification.refresh_from_db()
+        
+        # Debug the flags
+        print("is_from_muted flag:", getattr(self.notification, 'is_from_muted', False))
         
         # Verify it's marked as from muted source
         self.assertTrue(self.notification.is_from_muted)
