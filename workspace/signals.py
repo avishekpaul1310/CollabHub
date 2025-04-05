@@ -17,6 +17,10 @@ def send_notification(notification):
     Central function to handle notification sending logic.
     Checks user preferences and sends notifications accordingly.
     """
+    import inspect
+    logger.info(f"Starting send_notification for id:{notification.id} user:{notification.user.id} work_item:{notification.work_item.id if notification.work_item else None}")
+    logger.info(f"Function called from: {inspect.stack()[1].filename}:{inspect.stack()[1].lineno}")
+   
     user = notification.user
     work_item = notification.work_item
     thread = notification.thread if hasattr(notification, 'thread') else None
@@ -161,8 +165,11 @@ def send_notification(notification):
         # If no preferences exist, continue with notification
     
     # If we made it here, deliver the notification
-    logger.info(f"Delivering notification {notification.id} to user {user.username}")
+    logger.info(f"About to deliver notification {notification.id} to user {user.username}")
     _deliver_notification(notification)
+
+    # This line should never be reached for focus-filtered notifications
+    logger.info(f"Notification {notification.id} has been processed")
     
 def _deliver_notification(notification):
     """Helper function to deliver a notification via WebSocket"""
