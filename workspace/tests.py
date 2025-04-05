@@ -14,6 +14,7 @@ import json
 import inspect
 import asyncio
 from workspace.consumers import ChatConsumer
+from workspace.signals import send_notification
 
 from workspace.models import (
     WorkItem, Message, Thread, ThreadGroup, FileAttachment, Notification, NotificationPreference,
@@ -929,20 +930,21 @@ class NotificationHandlingTests(TestCase):
     @patch('workspace.signals._deliver_notification')
     def test_send_notification_muted_work_item(self, mock_deliver):
         """Test sending notifications for muted work item"""
-        from workspace.signals import send_notification
-        
         # Mute the work item
         self.notification_pref.muted_channels.add(self.work_item)
         
         # Send the notification
+        from workspace.signals import send_notification
         send_notification(self.notification)
         
-        # Should not deliver
-        mock_deliver.assert_not_called()
-        
-        # Notification should be marked as from muted source
+        # Refresh the notification from the database
         self.notification.refresh_from_db()
+        
+        # Verify it's marked as from muted source
         self.assertTrue(self.notification.is_from_muted)
+        
+        # Verify deliver wasn't called
+        mock_deliver.assert_not_called()
     
     @patch('workspace.signals._deliver_notification')
     def test_send_notification_focus_mode(self, mock_deliver):
