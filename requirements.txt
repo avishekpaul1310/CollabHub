@@ -26,7 +26,7 @@ click-repl
 prompt_toolkit
 
 # File processing
-python-magic
+python-magic-bin
 python-docx
 defusedxml
 lxml

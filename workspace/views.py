@@ -1,3 +1,21 @@
+# Fix for libmagic on Windows
+import sys
+import os
+
+# Define this before the magic import
+if sys.platform.startswith('win'):
+    # Try to set the PATH to include the python-magic-bin DLL directory
+    try:
+        import site
+        # Look for the DLL in site-packages
+        for site_path in site.getsitepackages():
+            magic_bin_path = os.path.join(site_path, 'magic', 'libmagic')
+            if os.path.exists(magic_bin_path):
+                os.environ['PATH'] = magic_bin_path + os.pathsep + os.environ['PATH']
+                break
+    except ImportError:
+        pass
+
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -10,7 +28,35 @@ from django.db.models import Q
 from django.db import IntegrityError
 from .models import Thread, FileAttachment, SlowChannel, SlowChannelMessage
 from .forms import FileAttachmentForm, NotificationPreferenceForm, ScheduledMessageForm, SlowChannelForm, SlowChannelParticipantsForm, SlowChannelMessageForm
-import logging, magic, json, datetime, random, os
+import logging, json, datetime, random
+
+# Now import magic after setting the PATH
+try:
+    import magic
+except ImportError:
+    # Fallback if magic import fails
+    import mimetypes
+    class MagicFallback:
+        def from_file(self, filename, mime=True):
+            mimetype, _ = mimetypes.guess_type(filename)
+            return mimetype or 'application/octet-stream'
+            
+        def from_buffer(self, buffer, mime=True):
+            # Simple check for common file types based on signatures
+            if buffer.startswith(b'%PDF'):
+                return 'application/pdf'
+            elif buffer.startswith(b'PK\x03\x04'):
+                return 'application/zip'
+            elif buffer.startswith(b'\xff\xd8\xff'):
+                return 'image/jpeg'
+            elif buffer.startswith(b'\x89PNG\r\n\x1a\n'):
+                return 'image/png'
+            else:
+                return 'application/octet-stream'
+    
+    # Create a magic replacement object
+    magic = MagicFallback()
+
 from django.utils import timezone
 from django.contrib.auth.models import User
 from datetime import timedelta
@@ -1349,7 +1395,7 @@ def get_work_analytics(request):
             })
         
         # Calculate average work day (only counting days with work)
-        work_days = [s for s in work_sessions if s['work_minutes'] > 0]
+        work_days = [s for s in work_days if s['work_minutes'] > 0]
         avg_work_minutes = sum(s['work_minutes'] for s in work_days) / max(len(work_days), 1)
         average_work_day = round(avg_work_minutes / 60, 1)  # Convert to hours
         
