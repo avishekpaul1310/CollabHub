@@ -22,7 +22,7 @@
                 <small class="text-muted">
                     Thread in {{ work_item.title }} • 
                     Created by {{ thread.created_by.username }} • 
-                    {{ thread.created_at|date:"M d, Y" }}
+                    {{ thread.created_at|date:INDIA_DATE_FORMAT }}
                     {% if not thread.is_public %}
                         <span class="badge bg-warning text-dark ms-2">Private</span>
                     {% endif %}
@@ -130,7 +130,7 @@
                                         <i class="fas fa-eye"></i>
                                     </button>
                                     {% endif %}
-                                    <small class="text-muted">{{ message.created_at|date:"Y-m-d H:i" }}</small>
+                                    <small class="text-muted">{{ message.created_at|date:INDIA_DATETIME_FORMAT }}</small>
                                 </div>
                             </div>
                             <div class="message-content mb-2">{{ message.content }}</div>
@@ -167,7 +167,7 @@
                                             <i class="fas fa-eye"></i>
                                         </button>
                                         {% endif %}
-                                        <small class="text-muted">{{ reply.created_at|date:"Y-m-d H:i" }}</small>
+                                        <small class="text-muted">{{ reply.created_at|date:INDIA_DATETIME_FORMAT }}</small>
                                     </div>
                                 </div>
                                 <div class="reply-content">{{ reply.content }}</div>

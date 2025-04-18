@@ -68,6 +68,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'workspace.context_processors.notifications_processor',
+                'workspace.context_processors.datetime_formats_processor',
             ],
         },
     },
@@ -124,6 +125,13 @@ TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
 
 USE_TZ = True
+
+# Custom date and time formats for India
+DATE_FORMAT = 'd-m-Y'  # DD-MM-YYYY format (e.g., 18-04-2025)
+DATETIME_FORMAT = 'd-m-Y H:i'  # DD-MM-YYYY HH:MM (e.g., 18-04-2025 14:30)
+SHORT_DATE_FORMAT = 'd M Y'  # DD Mon YYYY (e.g., 18 Apr 2025)
+SHORT_DATETIME_FORMAT = 'd M Y H:i'  # DD Mon YYYY HH:MM (e.g., 18 Apr 2025 14:30)
+TIME_FORMAT = 'H:i'  # 24-hour format (e.g., 14:30)
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'

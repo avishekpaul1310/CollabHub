@@ -53,8 +53,8 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {{ message.scheduled_time|date:"M d, Y" }}<br>
-                                        <span class="text-muted">{{ message.scheduled_time|time:"g:i A" }}</span>
+                                        {{ message.scheduled_time|date:INDIA_DATE_FORMAT }}<br>
+                                        <span class="text-muted">{{ message.scheduled_time|time:INDIA_TIME_FORMAT }}</span>
                                         <div class="small text-muted">
                                             {% with time_until=message.scheduled_time|timeuntil %}
                                                 In {{ time_until }}
@@ -117,8 +117,8 @@
                                         <span class="d-block text-muted small">Thread: {{ message.thread.title }}</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ message.scheduled_time|date:"M d, Y g:i A" }}</td>
-                                    <td>{{ message.sent_at|date:"M d, Y g:i A" }}</td>
+                                    <td>{{ message.scheduled_time|date:INDIA_DATETIME_FORMAT }}</td>
+                                    <td>{{ message.sent_at|date:INDIA_DATETIME_FORMAT }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
