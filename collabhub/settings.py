@@ -156,3 +156,130 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 60.0,  # Check every minute
     },
 }
+
+# Create logs directory if it doesn't exist
+LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+# Comprehensive Development Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} {levelname} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{asctime} {levelname} {message}',
+            'style': '{',
+        },
+        'color': {
+            '()': 'colorlog.ColoredFormatter',
+            'format': '%(log_color)s%(asctime)s %(levelname)-8s %(name)s %(lineno)d %(message)s',
+            'log_colors': {
+                'DEBUG': 'blue',
+                'INFO': 'green',
+                'WARNING': 'yellow',
+                'ERROR': 'red',
+                'CRITICAL': 'bold_red',
+            },
+        }
+    },
+    'filters': {
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'filters': ['require_debug_true'],
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple'
+        },
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOGS_DIR, 'collabhub.log'),
+            'formatter': 'verbose'
+        },
+        'celery_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOGS_DIR, 'celery.log'),
+            'formatter': 'verbose'
+        },
+        'websocket_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOGS_DIR, 'websockets.log'),
+            'formatter': 'verbose'
+        },
+        'db_file': {
+            'level': 'DEBUG',
+            'filters': ['require_debug_true'],
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOGS_DIR, 'db.log'),
+            'formatter': 'verbose'
+        },
+        'mail_admins': {
+            'level': 'ERROR',
+            'class': 'django.utils.log.AdminEmailHandler',
+            'include_html': True,
+        },
+        'errors_file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOGS_DIR, 'errors.log'),
+            'formatter': 'verbose'
+        }
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'django.db.backends': {
+            'handlers': ['console', 'db_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['mail_admins', 'errors_file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'celery': {
+            'handlers': ['console', 'celery_file', 'errors_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'workspace': {
+            'handlers': ['console', 'file', 'errors_file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'workspace.consumers': {
+            'handlers': ['console', 'websocket_file', 'errors_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'workspace.tasks': {
+            'handlers': ['console', 'celery_file', 'errors_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'users': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'search': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        }
+    }
+}

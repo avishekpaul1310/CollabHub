@@ -1,60 +1,72 @@
-amqp
+# Django and related packages
+Django
 asgiref
-attrs
-autobahn
-Automat
-billiard
-celery
-cffi
+sqlparse
+django-environ
+
+# Channels and WebSockets
 channels
 channels_redis
+daphne
+autobahn
+Twisted
+txaio
+
+# Celery and task processing
+celery
+amqp
+billiard
+kombu
+redis
+vine
 click
 click-didyoumean
 click-plugins
 click-repl
-colorama
-constantly
-cryptography
-daphne
-defusedxml
-Django
-django-environ
-gunicorn
-hyperlink
-idna
-incremental
-kombu
-python-magic-bin
-lxml
-python-magic
-msgpack
-odfpy
-packaging
-pillow
 prompt_toolkit
+
+# File processing
+python-magic
+python-docx
+defusedxml
+lxml
+odfpy
+pillow
+striprtf
+
+# Encryption and security
+cryptography
+cffi
+pyOpenSSL
+pycparser
 pyasn1
 pyasn1_modules
-pycparser
-pyOpenSSL
-python-dateutil
-python-docx
-python-magic-bin
-redis
+idna
 service-identity
+
+# Utils
+attrs
+colorama
+constantly
+hyperlink
+incremental
+msgpack
+packaging
+python-dateutil
 six
-sqlparse
-striprtf
-Twisted
-txaio
 typing_extensions
 tzdata
-vine
 wcwidth
 whitenoise
 zope.interface
+Automat
+colorlog  # For colored console logging
 
 # Cloud deployment packages
 psycopg2-binary>=2.8.6  # PostgreSQL adapter
 django-storages>=1.13  # For cloud storage backends
 google-cloud-storage>=2.0.0  # For Google Cloud Storage
 python-dotenv>=0.19.0  # For local .env file loading
+
+# Server
+gunicorn
