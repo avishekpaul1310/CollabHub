@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:14
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=collabhub
+      - POSTGRES_USER=collabhub_user
+      - POSTGRES_PASSWORD=collabhub_password
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U collabhub_user -d collabhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Channels and Celery
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Web application
+  web:
+    build: .
+    volumes:
+      - .:/app
+      - ./media:/app/media
+      - ./static:/app/static
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - COLLABHUB_ENVIRONMENT=production
+      - DEBUG=True # Set to True for testing but False for real production
+      - SECRET_KEY=test-secret-key-change-in-production
+      - ALLOWED_HOSTS=localhost,127.0.0.1
+      - DATABASE_URL=postgres://collabhub_user:collabhub_password@db:5432/collabhub
+      - REDIS_URL=redis://redis:6379/0
+      # These will be setup in Cloud environment, but are commented out for local testing
+      #- USE_GCS=True
+      #- GS_BUCKET_NAME=your-bucket-name
+      #- GS_CREDENTIALS=/app/credentials.json
+
+  # Celery worker
+  celery:
+    build: .
+    command: celery -A collabhub worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - web
+      - redis
+    environment:
+      - COLLABHUB_ENVIRONMENT=production
+      - DEBUG=True
+      - SECRET_KEY=test-secret-key-change-in-production
+      - DATABASE_URL=postgres://collabhub_user:collabhub_password@db:5432/collabhub
+      - REDIS_URL=redis://redis:6379/0
+
+  # Celery beat for scheduled tasks
+  celery-beat:
+    build: .
+    command: celery -A collabhub beat --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - web
+      - redis
+      - celery
+    environment:
+      - COLLABHUB_ENVIRONMENT=production
+      - DEBUG=True
+      - SECRET_KEY=test-secret-key-change-in-production
+      - DATABASE_URL=postgres://collabhub_user:collabhub_password@db:5432/collabhub
+      - REDIS_URL=redis://redis:6379/0
+
+volumes:
+  postgres_data:
+  redis_data:

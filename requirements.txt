@@ -52,3 +52,9 @@ vine
 wcwidth
 whitenoise
 zope.interface
+
+# Cloud deployment packages
+psycopg2-binary>=2.8.6  # PostgreSQL adapter
+django-storages>=1.13  # For cloud storage backends
+google-cloud-storage>=2.0.0  # For Google Cloud Storage
+python-dotenv>=0.19.0  # For local .env file loading

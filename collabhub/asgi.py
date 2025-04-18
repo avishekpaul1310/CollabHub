@@ -2,8 +2,14 @@ import os
 import django
 from django.core.asgi import get_asgi_application
 
-# Configure Django settings first
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'collabhub.settings')
+# Check if we're running in production
+is_prod = os.environ.get('COLLABHUB_ENVIRONMENT') == 'production'
+
+# Use production settings if the COLLABHUB_ENVIRONMENT variable is set to 'production'
+if is_prod:
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'collabhub.settings_prod')
+else:
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'collabhub.settings')
 
 # Set up Django before importing any app modules
 django.setup()
