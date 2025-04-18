@@ -2,7 +2,7 @@
 echo Starting CollabHub Components...
 
 :: Start Redis Server
-start cmd /k "title Redis Server && cd /d C:\Users\Avishek Paul\Downloads\Redis-x64-5.0.14.1 && redis-server.exe"
+start cmd /k "title Redis Server && cd /d C:\redis\Redis-x64-5.0.14.1 && redis-server.exe"
 
 :: Start Celery Worker
 start cmd /k "title Celery Worker && cd /d C:\Users\Avishek Paul\CollabHub && venv_new\Scripts\activate && celery -A collabhub worker --pool=solo -l info"
