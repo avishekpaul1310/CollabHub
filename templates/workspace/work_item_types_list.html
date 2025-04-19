@@ -44,19 +44,12 @@
                                     {% for type in types %}
                                         <tr>
                                             <td>
-                                                {% if 'text-' in type.color %}
-                                                    {% with bg_color=type.color|cut:'text-dark'|cut:'text-white' %}
-                                                    <span class="badge bg-{{ bg_color }} {% if 'text-dark' in type.color %}text-dark{% elif 'text-white' in type.color %}text-white{% endif %}">
+                                                {% with color_parts=type.color.split %}
+                                                    <span class="badge bg-{{ color_parts.0 }} {% for part in color_parts|slice:'1:' %}{{ part }} {% endfor %}">
                                                         <i class="fas {{ type.icon }} me-1"></i>
                                                         {{ type.name }}
                                                     </span>
-                                                    {% endwith %}
-                                                {% else %}
-                                                    <span class="badge bg-{{ type.color }}">
-                                                        <i class="fas {{ type.icon }} me-1"></i>
-                                                        {{ type.name }}
-                                                    </span>
-                                                {% endif %}
+                                                {% endwith %}
                                             </td>
                                             <td>{{ type.name }}</td>
                                             <td>{{ type.description|truncatechars:50 }}</td>

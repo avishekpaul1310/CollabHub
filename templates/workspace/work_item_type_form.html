@@ -128,14 +128,17 @@
             namePreview.textContent = typeName;
             
             // Update color
-            const selectedColor = colorSelect.value || 'primary';
+            const selectedColor = colorSelect.value || 'primary text-white';
             
-            // Apply the proper color classes based on the color
-            badgePreview.className = 'badge bg-' + selectedColor;
+            // Split the color value to handle background and text colors
+            const colorParts = selectedColor.split(' ');
             
-            // Add appropriate text color for certain background colors
-            if (selectedColor === 'warning' || selectedColor === 'info' || selectedColor === 'orange') {
-                badgePreview.classList.add('text-dark');
+            // First part is always the background color
+            badgePreview.className = 'badge bg-' + colorParts[0];
+            
+            // Add text color class if present
+            if (colorParts.length > 1) {
+                badgePreview.classList.add(colorParts[1]);
             }
             
             // Update icon

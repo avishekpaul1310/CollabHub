@@ -57,11 +57,11 @@ class WorkItemForm(forms.ModelForm):
         
         # Define default types with colors and icons
         defaults = [
-            {'name': 'Task', 'color': 'info', 'icon': 'fa-tasks', 
+            {'name': 'Task', 'color': 'info text-dark', 'icon': 'fa-tasks', 
              'description': 'A single actionable item'},
-            {'name': 'Document', 'color': 'purple', 'icon': 'fa-file-lines',
+            {'name': 'Document', 'color': 'dark text-white', 'icon': 'fa-file-lines',
              'description': 'Documentation, notes, or written content'},
-            {'name': 'Project', 'color': 'warning', 'icon': 'fa-project-diagram',
+            {'name': 'Project', 'color': 'warning text-dark', 'icon': 'fa-project-diagram',
              'description': 'A collection of related tasks and resources'}
         ]
         
@@ -94,16 +94,13 @@ class WorkItemForm(forms.ModelForm):
 class WorkItemTypeForm(forms.ModelForm):
     """Form for creating and editing work item types"""
     COLOR_CHOICES = [
-        ('primary', 'Blue'),
-        ('secondary', 'Gray'),
-        ('success', 'Green'),
-        ('danger', 'Red'),
-        ('warning', 'Yellow (with dark text)'),
-        ('info', 'Light Blue (with dark text)'),
-        ('purple', 'Purple'),
-        ('pink', 'Pink'),
-        ('orange', 'Orange (with dark text)'),
-        ('teal', 'Teal'),
+        ('primary text-white', 'Blue'),
+        ('secondary text-white', 'Gray'),
+        ('success text-white', 'Green'),
+        ('danger text-white', 'Red'),
+        ('warning text-dark', 'Yellow'),
+        ('info text-dark', 'Light Blue'),
+        ('dark text-white', 'Black'),
     ]
     
     ICON_CHOICES = [
