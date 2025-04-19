@@ -84,7 +84,7 @@ class WorkItem(models.Model):
         if self.type == 'task':
             return 'fa-tasks'
         elif self.type == 'doc':
-            return 'fa-file-alt'
+            return 'fa-file-lines'  # Changed from fa-file-alt for better visibility
         elif self.type == 'project':
             return 'fa-project-diagram'
         return 'fa-clipboard'

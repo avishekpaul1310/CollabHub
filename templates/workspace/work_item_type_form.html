@@ -126,17 +126,12 @@
             // Update color
             const selectedColor = colorSelect.value || 'primary';
             
-            // Check if the color includes text color classes
-            if (selectedColor.includes('text-')) {
-                // Extract the background color part and text color part
-                const bgColorPart = selectedColor.replace('text-dark', '').replace('text-white', '').trim();
-                const textColorPart = selectedColor.includes('text-dark') ? 'text-dark' : 
-                                     selectedColor.includes('text-white') ? 'text-white' : '';
-                
-                // Apply both classes separately
-                badgePreview.className = 'badge bg-' + bgColorPart + ' ' + textColorPart;
-            } else {
-                badgePreview.className = 'badge bg-' + selectedColor;
+            // Apply the proper color classes based on the color
+            badgePreview.className = 'badge bg-' + selectedColor;
+            
+            // Add appropriate text color for certain background colors
+            if (selectedColor === 'warning' || selectedColor === 'info' || selectedColor === 'orange') {
+                badgePreview.classList.add('text-dark');
             }
             
             // Update icon

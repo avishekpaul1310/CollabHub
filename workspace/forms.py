@@ -98,12 +98,12 @@ class WorkItemTypeForm(forms.ModelForm):
         ('secondary', 'Gray'),
         ('success', 'Green'),
         ('danger', 'Red'),
-        ('warning text-dark', 'Yellow'),  # Adding text-dark for better contrast
-        ('info text-dark', 'Light Blue'),  # Adding text-dark for better contrast
-        ('purple text-white', 'Purple'),  # Ensuring text is white for visibility
-        ('pink text-white', 'Pink'),
-        ('orange text-dark', 'Orange'),  # Dark text for better contrast
-        ('teal text-white', 'Teal'),
+        ('warning', 'Yellow (with dark text)'),
+        ('info', 'Light Blue (with dark text)'),
+        ('purple', 'Purple'),
+        ('pink', 'Pink'),
+        ('orange', 'Orange (with dark text)'),
+        ('teal', 'Teal'),
     ]
     
     ICON_CHOICES = [
