@@ -685,6 +685,9 @@
     
     {% block extra_js %}{% endblock %}
     {% if user.is_authenticated %}
+    <!-- Load critical JavaScript libraries first -->
+    <script src="{% static 'js/websocket-manager.js' %}"></script>
+    <script src="{% static 'js/chat.js' %}"></script>
     <script src="{% static 'js/online-status.js' %}"></script>
     <script src="{% static 'js/afk-mode-toggle.js' %}"></script>
     <!-- Work-Life Balance JavaScript -->
