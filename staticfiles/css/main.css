@@ -127,6 +127,39 @@ body {
     object-fit: cover;
 }
 
+/* Avatar placeholder styling */
+.avatar-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #6a7ef8, #8c5bdd);
+    color: white;
+    font-weight: 500;
+    border-radius: 50%;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+/* Large avatar placeholder (profile page) */
+.avatar-placeholder.large {
+    width: 200px;
+    height: 200px;
+    font-size: 72px;
+}
+
+/* Default avatar placeholder (for comments, threads, etc.) */
+.avatar-placeholder.default {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+}
+
+/* Small avatar placeholder for more compact displays */
+.avatar-placeholder.small {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+}
+
 .sidebar {
     background-color: white;
     height: calc(100vh - 56px);
