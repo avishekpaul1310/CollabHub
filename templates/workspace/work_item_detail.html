@@ -158,8 +158,7 @@
                     {% for file in files %}
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         <a href="{{ file.file.url }}" target="_blank">{{ file.name }}</a>
-                        <small class="text-muted">Uploaded by {{ file.uploaded_by.username }} on {{ file.uploaded_at|date:"M
-                            d, Y" }}</small>
+                        <small class="text-muted">Uploaded by {{ file.uploaded_by.username }} on {{ file.uploaded_at|date:"M d, Y" }}</small>
                     </li>
                     {% endfor %}
                 </ul>
@@ -294,6 +293,28 @@
             });
         }
         
+        // Temporarily disable the notification sound system before file upload
+        function disableNotificationSounds() {
+            console.log('Temporarily disabling notification sounds for file upload');
+            // Store the original playNotificationSound function
+            if (window.playNotificationSound) {
+                window._originalPlaySound = window.playNotificationSound;
+                // Replace with a no-op function
+                window.playNotificationSound = function() {
+                    console.log('Notification sound suppressed during upload');
+                };
+                
+                // Restore the original function after a short delay
+                setTimeout(function() {
+                    if (window._originalPlaySound) {
+                        console.log('Restoring notification sound functionality');
+                        window.playNotificationSound = window._originalPlaySound;
+                        window._originalPlaySound = null;
+                    }
+                }, 3000); // Restore after 3 seconds
+            }
+        }
+        
         // Handle file upload form submissions
         const fileUploadForm = document.getElementById('file-upload-form');
         if (fileUploadForm) {
@@ -305,6 +326,11 @@
                     alert('Please select a file to upload');
                 } else {
                     console.log(`Uploading file: ${fileInput.files[0].name}`);
+                    disableNotificationSounds();
+                    
+                    // Set a flag in session storage to indicate this browser just uploaded a file
+                    sessionStorage.setItem('fileJustUploaded', 'true');
+                    sessionStorage.setItem('fileUploadTime', Date.now());
                 }
             });
         }
@@ -320,6 +346,11 @@
                     alert('Please select a file to upload');
                 } else {
                     console.log(`Uploading file: ${fileInput.files[0].name}`);
+                    disableNotificationSounds();
+                    
+                    // Set a flag in session storage to indicate this browser just uploaded a file
+                    sessionStorage.setItem('fileJustUploaded', 'true');
+                    sessionStorage.setItem('fileUploadTime', Date.now());
                 }
             });
         }

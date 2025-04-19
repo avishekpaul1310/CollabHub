@@ -305,7 +305,7 @@ def upload_file(request, pk):
         # Extension-based validation - no need for magic library
         file_name = uploaded_file.name
         file_extension = os.path.splitext(file_name)[1].lower()
-        allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt', '.png', '.jpg', '.jpeg']
+        allowed_extensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt', '.png', '.jpg', '.jpeg', '.ppt', '.pptx']
         
         if file_extension not in allowed_extensions:
             messages.error(request, f"File type not allowed. Allowed types: {', '.join(allowed_extensions)}")

@@ -589,17 +589,39 @@
                                 };
                             }
 
-                            // Only play notification sound if this is not from the current user
-                            // Extract username from message if possible (format: "username sent a message...")
+                            // Check if this browser just uploaded a file
+                            const fileJustUploaded = sessionStorage.getItem('fileJustUploaded');
+                            const fileUploadTime = parseInt(sessionStorage.getItem('fileUploadTime') || '0', 10);
+                            const isRecentUpload = (Date.now() - fileUploadTime) < 5000; // Within 5 seconds
+                            
+                            // Check if notification is about file upload
+                            const isFileUploadNotification = data.message && 
+                                (data.message.includes('uploaded') && data.message.includes('to'));
+
+                            if (fileJustUploaded === 'true' && isRecentUpload && isFileUploadNotification) {
+                                console.log('Suppressing notification sound for recently uploaded file');
+                                // Clear the flag to prevent future suppression
+                                sessionStorage.removeItem('fileJustUploaded');
+                                return; // Skip playing sound and further processing
+                            }
+
+                            // Determine if this is a notification about the current user's action
                             const currentUsername = '{{ user.username }}';
                             const messageText = data.message || '';
-                            const isSentByCurrentUser = messageText.startsWith(currentUsername);
                             
-                            if (!isSentByCurrentUser) {
-                                // Play notification sound for messages not sent by current user
+                            // Check various patterns that would indicate this notification is about your own action
+                            const isOwnAction = 
+                                messageText.startsWith(currentUsername) || // You sent a message
+                                (messageText.includes('uploaded') && messageText.startsWith(currentUsername)) || // You uploaded a file
+                                (messageText.includes('updated by ' + currentUsername)) || // You updated something
+                                messageText.includes(`${currentUsername} posted in thread`); // You posted in a thread
+                            
+                            if (!isOwnAction) {
+                                // Only play sound for actions that weren't performed by the current user
+                                console.log('Playing notification sound');
                                 window.playNotificationSound();
                             } else {
-                                console.log('Skipping notification sound for own message');
+                                console.log('Skipping notification sound for own action:', messageText);
                             }
                             
                             // Optionally: update the notification dropdown content
