@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import update_session_auth_hash
 from .forms import UserRegisterForm, UserUpdateForm, ProfileUpdateForm
 from django.conf import settings
 import os
@@ -62,3 +63,22 @@ def remove_profile_picture(request):
             messages.info(request, 'No custom profile picture to remove.')
             
     return redirect('profile')
+
+@login_required
+def change_password(request):
+    if request.method == 'POST':
+        form = PasswordChangeForm(request.user, request.POST)
+        if form.is_valid():
+            user = form.save()
+            # Important: update_session_auth_hash keeps the user logged in after password change
+            update_session_auth_hash(request, user)
+            messages.success(request, 'Your password was successfully updated!')
+            return redirect('profile')
+        else:
+            messages.error(request, 'Please correct the error below.')
+    else:
+        form = PasswordChangeForm(request.user)
+    
+    return render(request, 'users/change_password.html', {
+        'form': form
+    })
