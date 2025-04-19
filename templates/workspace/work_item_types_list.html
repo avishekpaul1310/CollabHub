@@ -44,7 +44,7 @@
                                     {% for type in types %}
                                         <tr>
                                             <td>
-                                                <span class="badge bg-{{ type.color }}">
+                                                <span class="badge {% if 'text-' in type.color %}bg-{{ type.color|cut:'text-dark'|cut:'text-white'|trim }}{% else %}bg-{{ type.color }}{% endif %} {% if 'text-' in type.color %}{{ type.color|cut:'primary '|cut:'secondary '|cut:'success '|cut:'danger '|cut:'warning '|cut:'info '|cut:'purple '|cut:'pink '|cut:'orange '|cut:'teal '|trim }}{% endif %}">
                                                     <i class="fas {{ type.icon }} me-1"></i>
                                                     {{ type.name }}
                                                 </span>

@@ -59,7 +59,7 @@ class WorkItemForm(forms.ModelForm):
         defaults = [
             {'name': 'Task', 'color': 'info', 'icon': 'fa-tasks', 
              'description': 'A single actionable item'},
-            {'name': 'Document', 'color': 'purple', 'icon': 'fa-file-alt',
+            {'name': 'Document', 'color': 'purple', 'icon': 'fa-file-lines',
              'description': 'Documentation, notes, or written content'},
             {'name': 'Project', 'color': 'warning', 'icon': 'fa-project-diagram',
              'description': 'A collection of related tasks and resources'}
@@ -98,17 +98,17 @@ class WorkItemTypeForm(forms.ModelForm):
         ('secondary', 'Gray'),
         ('success', 'Green'),
         ('danger', 'Red'),
-        ('warning', 'Yellow'),
-        ('info', 'Light Blue'),
-        ('purple', 'Purple'),
-        ('pink', 'Pink'),
-        ('orange', 'Orange'),
-        ('teal', 'Teal'),
+        ('warning text-dark', 'Yellow'),  # Adding text-dark for better contrast
+        ('info text-dark', 'Light Blue'),  # Adding text-dark for better contrast
+        ('purple text-white', 'Purple'),  # Ensuring text is white for visibility
+        ('pink text-white', 'Pink'),
+        ('orange text-dark', 'Orange'),  # Dark text for better contrast
+        ('teal text-white', 'Teal'),
     ]
     
     ICON_CHOICES = [
         ('fa-tasks', 'Tasks'),
-        ('fa-file-alt', 'Document'),
+        ('fa-file-lines', 'Document'),  # Updated to consistent icon with default types
         ('fa-project-diagram', 'Project'),
         ('fa-cog', 'Settings'),
         ('fa-bug', 'Bug'),
