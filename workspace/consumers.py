@@ -33,6 +33,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
+            
+            # Handle heartbeat messages separately
+            if data.get('type') == 'heartbeat':
+                await self.send(text_data=json.dumps({
+                    'type': 'heartbeat_response'
+                }))
+                return
+                
+            # Check if this is a real message
+            if 'message' not in data or not data['message'].strip():
+                print("Empty message received, ignoring")
+                return
+                
             message = data['message']
             user_id = data['user_id']
             
@@ -44,8 +57,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
             # Create notifications for all collaborators except the sender
             await self.create_notifications(message_obj, user_id)
             
-            # Format timestamp for display
-            timestamp = message_obj.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            # Send the current server timestamp in UTC
+            current_time = timezone.now()
+            # Format timestamp with timezone info
+            timestamp = current_time.isoformat()
             
             # Get username
             username = await self.get_username(user_id)

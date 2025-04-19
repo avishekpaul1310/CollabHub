@@ -213,18 +213,18 @@
                         </a>
                     </div>
                 </div>
+            </form>
     
-                <div class="d-flex align-items-center mt-2">
-                    <form action="{% url 'upload_file' work_item.pk %}" method="post" enctype="multipart/form-data">
-                        {% csrf_token %}
-                        <div class="input-group mb-3">
-                            <input type="file" name="file" class="form-control" id="file-input" required>
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-upload"></i> Upload
-                            </button>
-                        </div>
-                    </form>
+            <!-- File upload form - separate from chat form -->
+            <form id="file-upload-form" action="{% url 'upload_file' work_item.pk %}" method="post" enctype="multipart/form-data" class="mt-3">
+                {% csrf_token %}
+                <div class="input-group">
+                    <input type="file" name="file" class="form-control" id="file-input" required>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-upload"></i> Upload
+                    </button>
                 </div>
+                <small id="file-name" class="text-muted"></small>
             </form>
         </div>
     </div>

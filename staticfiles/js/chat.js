@@ -26,28 +26,69 @@ document.addEventListener('DOMContentLoaded', function() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
     const wsUrl = `${wsProtocol}${window.location.host}/ws/chat/${workItemId}/`;
     
-    const chatSocket = window.webSocketManager.createConnection(wsUrl, {
-        debug: true,
-        onOpen: () => {
-            console.log('Chat WebSocket connected');
-            // Update UI to show connection status if needed
-        },
-        onClose: () => {
-            console.log('Chat WebSocket closed');
-        },
-        onError: (error) => {
-            console.error('Chat WebSocket error:', error);
+    // Store WebSocket status globally
+    window.webSocketStatus = {
+        isConnected: false,
+        connectionState: 'connecting'
+    };
+    
+    // Initialize WebSocket connection if webSocketManager is available
+    let chatSocket = null;
+    
+    function initializeWebSocket() {
+        if (!window.webSocketManager) {
+            console.error('WebSocketManager not found. Make sure websocket-manager.js is loaded first.');
+            window.webSocketStatus.connectionState = 'error';
+            return null;
         }
-    });
+        
+        try {
+            const socket = window.webSocketManager.createConnection(wsUrl, {
+                debug: true,
+                onOpen: () => {
+                    console.log('Chat WebSocket connected');
+                    window.webSocketStatus.isConnected = true;
+                    window.webSocketStatus.connectionState = 'connected';
+                    // Update UI to show connection status if needed
+                },
+                onClose: () => {
+                    console.log('Chat WebSocket closed');
+                    window.webSocketStatus.isConnected = false;
+                    window.webSocketStatus.connectionState = 'closed';
+                    
+                    // Try to reconnect after a delay
+                    setTimeout(() => {
+                        if (!window.webSocketStatus.isConnected) {
+                            console.log('Attempting to reconnect WebSocket...');
+                            window.chatSocket = initializeWebSocket();
+                        }
+                    }, 5000);
+                },
+                onError: (error) => {
+                    console.error('Chat WebSocket error:', error);
+                    window.webSocketStatus.connectionState = 'error';
+                }
+            });
+            
+            // Connect to WebSocket
+            socket.connect();
+            
+            // Register message handler
+            socket.on('message', function(data) {
+                addMessageToChat(data.message, data.username, new Date(data.timestamp || Date.now()));
+                scrollToBottom();
+            });
+            
+            return socket;
+        } catch (error) {
+            console.error('Error initializing WebSocket:', error);
+            window.webSocketStatus.connectionState = 'error';
+            return null;
+        }
+    }
     
-    // Connect to WebSocket
-    chatSocket.connect();
-    
-    // Register message handler
-    chatSocket.on('message', function(data) {
-        addMessageToChat(data.message, data.username, new Date(data.timestamp || Date.now()));
-        scrollToBottom();
-    });
+    // Initialize the chat socket
+    chatSocket = initializeWebSocket();
     
     // Store socket instance for sending messages
     window.chatSocket = chatSocket;
@@ -66,6 +107,25 @@ document.addEventListener('DOMContentLoaded', function() {
         fileInput.addEventListener('change', handleFileSelection);
     }
     
+    // Handle file upload form
+    const fileUploadForm = document.getElementById('file-upload-form');
+    if (fileUploadForm) {
+        fileUploadForm.addEventListener('submit', function(e) {
+            // File uploads should use the regular form submission
+            // No need to use WebSocket for file uploads
+            
+            // Optional: Show upload status
+            const fileInput = document.getElementById('file-input');
+            if (fileInput && fileInput.files.length > 0) {
+                console.log(`Uploading file: ${fileInput.files[0].name}`);
+            } else {
+                e.preventDefault(); // Prevent submission if no file selected
+                console.error('No file selected for upload');
+                alert('Please select a file to upload');
+            }
+        });
+    }
+    
     /**
      * Handle form submission for messages and files
      */
@@ -81,17 +141,44 @@ document.addEventListener('DOMContentLoaded', function() {
         const message = messageInput.value.trim();
         
         // Send text message if there is one
-        if (message && window.chatSocket && window.chatSocket.readyState === WebSocket.OPEN) {
+        if (message) {
+            sendMessage(message);
+            messageInput.value = '';
+        }
+    }
+    
+    /**
+     * Send a message via the WebSocket connection
+     */
+    function sendMessage(message) {
+        if (window.chatSocket && window.webSocketStatus.isConnected) {
             window.chatSocket.send(JSON.stringify({
                 'message': message,
                 'username': username,
                 'user_id': userId
             }));
+            return true;
+        } else {
+            console.error('WebSocket is not open. Current state:', window.webSocketStatus.connectionState);
             
-            messageInput.value = '';
-        } else if (window.chatSocket && window.chatSocket.readyState !== WebSocket.OPEN) {
-            console.error('WebSocket is not open. Current state:', window.chatSocket.readyState);
-            alert('Connection to chat server is not open. Please refresh the page.');
+            // Try to reconnect if connection is lost
+            if (!window.webSocketStatus.isConnected && window.webSocketStatus.connectionState !== 'connecting') {
+                console.log('Attempting to reconnect WebSocket...');
+                window.chatSocket = initializeWebSocket();
+                
+                // Queue message to be sent once connection is established
+                setTimeout(() => {
+                    if (window.webSocketStatus.isConnected) {
+                        sendMessage(message);
+                    } else {
+                        alert('Connection to chat server is not open. Please refresh the page.');
+                    }
+                }, 1000);
+            } else {
+                alert('Connection to chat server is not open. Please refresh the page.');
+            }
+            
+            return false;
         }
     }
     
