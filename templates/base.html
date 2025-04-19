@@ -421,10 +421,13 @@
         let notificationSound;
         let audioContext;
         let hasUserInteracted = false;
+        let audioInitializationAttempted = false;
         
         // Function to initialize audio system
         function initAudioSystem() {
             if (audioContext) return; // Already initialized
+            
+            audioInitializationAttempted = true;
             
             try {
                 // Create audio context
@@ -436,6 +439,13 @@
                 // Pre-load the sound
                 notificationSound.load();
                 
+                // Resume AudioContext if it's suspended (needed for some browsers)
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().then(() => {
+                        console.log('AudioContext resumed successfully');
+                    });
+                }
+                
                 console.log('Audio system initialized');
                 hasUserInteracted = true;
             } catch (e) {
@@ -443,18 +453,26 @@
             }
         }
         
-        // Initialize on first user interaction
-        document.addEventListener('click', function() {
-            if (!hasUserInteracted) {
-                initAudioSystem();
-            }
-        }, {once: false});
+        // Initialize on various user interactions to maximize chances of successful audio
+        ['click', 'touchstart', 'keydown'].forEach(event => {
+            document.addEventListener(event, function() {
+                if (!audioInitializationAttempted) {
+                    initAudioSystem();
+                }
+            }, {once: true});  // only trigger once per event type
+        });
+        
+        // Also try to initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Try to initialize, but this may not work without user interaction
+            if (!audioInitializationAttempted) setTimeout(initAudioSystem, 1000);
+        });
         
         // Global function to play notification sound
         window.playNotificationSound = function() {
-            if (!hasUserInteracted) {
-                console.log('Cannot play sound - waiting for user interaction');
-                return;
+            // Try to initialize audio again if not already done
+            if (!audioInitializationAttempted) {
+                initAudioSystem();
             }
             
             if (notificationSound) {
@@ -464,6 +482,12 @@
                 // Play and handle errors properly
                 notificationSound.play().catch(error => {
                     console.error('Failed to play notification sound:', error);
+                    
+                    // If autoplay was prevented, try to re-init the audio system
+                    if (error.name === 'NotAllowedError') {
+                        hasUserInteracted = false;
+                        console.log('Autoplay prevented - audio will play after user interaction');
+                    }
                 });
             }
         };
@@ -565,8 +589,18 @@
                                 };
                             }
 
-                            // Play notification sound
-                            window.playNotificationSound();
+                            // Only play notification sound if this is not from the current user
+                            // Extract username from message if possible (format: "username sent a message...")
+                            const currentUsername = '{{ user.username }}';
+                            const messageText = data.message || '';
+                            const isSentByCurrentUser = messageText.startsWith(currentUsername);
+                            
+                            if (!isSentByCurrentUser) {
+                                // Play notification sound for messages not sent by current user
+                                window.playNotificationSound();
+                            } else {
+                                console.log('Skipping notification sound for own message');
+                            }
                             
                             // Optionally: update the notification dropdown content
                             refreshNotificationDropdown();
