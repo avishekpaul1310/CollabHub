@@ -3,6 +3,8 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from .forms import UserRegisterForm, UserUpdateForm, ProfileUpdateForm
+from django.conf import settings
+import os
 
 def register(request):
     if request.method == 'POST':
@@ -36,3 +38,27 @@ def profile(request):
         'p_form': p_form
     }
     return render(request, 'users/profile.html', context)
+
+@login_required
+def remove_profile_picture(request):
+    if request.method == 'POST':
+        profile = request.user.profile
+        
+        # Check if profile has a custom image (not the default)
+        if profile.avatar and 'default.png' not in profile.avatar.path:
+            # Get the file path
+            file_path = profile.avatar.path
+            
+            # Check if file exists and delete it
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            
+            # Reset avatar field to default
+            profile.avatar = 'default.png'
+            profile.save()
+            
+            messages.success(request, 'Profile picture removed successfully!')
+        else:
+            messages.info(request, 'No custom profile picture to remove.')
+            
+    return redirect('profile')

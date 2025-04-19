@@ -17,6 +17,15 @@
                         </div>
                         <h5>{{ user.username }}</h5>
                         <p class="text-muted">{{ user.email }}</p>
+                        
+                        {% if user.profile.avatar and 'default.png' not in user.profile.avatar.url %}
+                        <form action="{% url 'remove_profile_picture' %}" method="POST" class="mt-2">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                <i class="fas fa-trash"></i> Remove Picture
+                            </button>
+                        </form>
+                        {% endif %}
                     </div>
                     
                     <div class="col-md-8">
@@ -44,6 +53,7 @@
                                 {{ p_form.avatar.errors }}
                                 <input type="file" name="{{ p_form.avatar.name }}" id="{{ p_form.avatar.id_for_label }}" 
                                        class="form-control {% if p_form.avatar.errors %}is-invalid{% endif %}">
+                                <div class="form-text">Upload a new image to change your profile picture.</div>
                             </div>
                             
                             <div class="mb-3">
