@@ -195,6 +195,11 @@ def create_message_notification(sender, instance, created, **kwargs):
         # Skip notifications for threaded messages - these are handled by the ThreadConsumer
         if instance.thread is not None:
             return
+        
+        # Skip notifications for direct chat messages - these are handled by the ChatConsumer
+        # Check if the is_from_websocket flag is set (we'll add logic to set this in consumers.py)
+        if hasattr(instance, 'is_from_websocket') and instance.is_from_websocket:
+            return
             
         # Get the owner if not the message sender
         recipients = set()

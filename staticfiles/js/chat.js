@@ -4,6 +4,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatMessages = document.getElementById('chat-messages');
     if (!chatMessages) return;
     
+    // Check if a WebSocket is already connected for this work item
+    // This prevents duplicate connections
+    if (window.chatSocketInitialized) {
+        console.log('Chat WebSocket already initialized, skipping duplicate connection');
+        return;
+    }
+    
     // Get the work item ID from the data attribute
     const workItemId = chatMessages.getAttribute('data-work-item-id');
     const userId = document.querySelector('meta[name="user-id"]').getAttribute('content');
@@ -49,12 +56,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('Chat WebSocket connected');
                     window.webSocketStatus.isConnected = true;
                     window.webSocketStatus.connectionState = 'connected';
+                    // Mark as initialized to prevent duplicate connections
+                    window.chatSocketInitialized = true;
                     // Update UI to show connection status if needed
                 },
                 onClose: () => {
                     console.log('Chat WebSocket closed');
                     window.webSocketStatus.isConnected = false;
                     window.webSocketStatus.connectionState = 'closed';
+                    window.chatSocketInitialized = false;
                     
                     // Try to reconnect after a delay
                     setTimeout(() => {
@@ -75,8 +85,12 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Register message handler
             socket.on('message', function(data) {
-                addMessageToChat(data.message, data.username, new Date(data.timestamp || Date.now()));
-                scrollToBottom();
+                // Check if this message is already in the chat
+                // This prevents duplicate messages
+                if (!isMessageAlreadyDisplayed(data)) {
+                    addMessageToChat(data.message, data.username, new Date(data.timestamp || Date.now()));
+                    scrollToBottom();
+                }
             });
             
             return socket;
@@ -85,6 +99,25 @@ document.addEventListener('DOMContentLoaded', function() {
             window.webSocketStatus.connectionState = 'error';
             return null;
         }
+    }
+    
+    // Function to check if a message is already displayed in the chat
+    // This helps prevent duplicate messages
+    function isMessageAlreadyDisplayed(data) {
+        const messages = chatMessages.querySelectorAll('.message');
+        for (let i = 0; i < messages.length; i++) {
+            const userElement = messages[i].querySelector('.message-user');
+            const contentElement = messages[i].querySelector('.message-content');
+            
+            if (userElement && contentElement) {
+                if (userElement.textContent === data.username && 
+                    contentElement.textContent === data.message) {
+                    // Found a match - this message is already displayed
+                    return true;
+                }
+            }
+        }
+        return false;
     }
     
     // Initialize the chat socket

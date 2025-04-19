@@ -110,11 +110,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
         try:
             user = User.objects.get(pk=user_id)
             work_item = WorkItem.objects.get(pk=self.work_item_id)
-            return Message.objects.create(
+            
+            # Create message with is_from_websocket flag set to True
+            message_obj = Message.objects.create(
                 work_item=work_item,
                 user=user,
-                content=message
+                content=message,
+                is_from_websocket=True  # Set the flag to identify WebSocket messages
             )
+            
+            return message_obj
         except Exception as e:
             print(f"Error saving message: {str(e)}")
             raise
@@ -379,14 +384,15 @@ class ThreadConsumer(AsyncWebsocketConsumer):
         if parent_id:
             parent = Message.objects.get(pk=parent_id)
         
-        # Create message
+        # Create message with is_from_websocket flag set to True
         message = Message.objects.create(
             work_item=work_item,
             thread=thread,
             user=user,
             content=content,
             parent=parent,
-            is_thread_starter=False
+            is_thread_starter=False,
+            is_from_websocket=True  # Set the flag to identify WebSocket messages
         )
         
         # Create notifications for thread participants except the message sender

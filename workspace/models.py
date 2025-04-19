@@ -100,6 +100,7 @@ class Message(models.Model):
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
     is_thread_starter = models.BooleanField(default=False)
     is_scheduled = models.BooleanField(default=False)  # New field to track scheduled messages
+    is_from_websocket = models.BooleanField(default=False)  # Track WebSocket-created messages
     
     class Meta:
         ordering = ['created_at']
