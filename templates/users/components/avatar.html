@@ -1,0 +1,22 @@
+{% comment %}
+    Reusable user avatar component
+    Usage:
+    {% include 'users/components/avatar.html' with user=user size='default' %}
+    
+    Parameters:
+    - user: User object (required)
+    - size: Size variant ('large', 'default', 'small') - default is 'default'
+{% endcomment %}
+
+{% with size=size|default:'default' %}
+    {% if user.profile.avatar and 'default.png' not in user.profile.avatar.url %}
+        <img src="{{ user.profile.avatar.url }}" 
+            alt="{{ user.username }}" 
+            class="avatar {% if size %}avatar-{{ size }}{% endif %}"
+            title="{{ user.username }}">
+    {% else %}
+        <div class="avatar-placeholder {{ size }}" title="{{ user.username }}">
+            {{ user.username|slice:":2"|upper }}
+        </div>
+    {% endif %}
+{% endwith %}
