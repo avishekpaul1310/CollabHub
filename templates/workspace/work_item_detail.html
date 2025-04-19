@@ -50,7 +50,16 @@
                 <div class="d-flex flex-wrap">
                     {% for collaborator in work_item.collaborators.all %}
                     <div class="me-2 mb-2">
-                        <span class="badge bg-secondary">{{ collaborator.username }}</span>
+                        <div class="badge bg-secondary d-flex align-items-center px-3 py-2">
+                            <span class="me-2">{{ collaborator.username }}</span>
+                            {% if request.user == work_item.owner %}
+                            <a href="{% url 'remove_collaborator' work_item.pk collaborator.id %}" 
+                               class="btn btn-danger btn-sm py-0 px-1" 
+                               onclick="return confirm('Are you sure you want to remove {{ collaborator.username }} from this work item?');">
+                                <i class="fas fa-times"></i>
+                            </a>
+                            {% endif %}
+                        </div>
                     </div>
                     {% endfor %}
                 </div>

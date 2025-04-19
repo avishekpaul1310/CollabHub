@@ -3,7 +3,23 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 import datetime
 
+class WorkItemType(models.Model):
+    """Model for custom work item types that can be created by users"""
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    color = models.CharField(max_length=20, default="primary")
+    icon = models.CharField(max_length=50, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_types')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        ordering = ['name']
+
 class WorkItem(models.Model):
+    # We'll keep the TYPES constant for backward compatibility and default types
     TYPES = [
         ('task', 'Task'),
         ('doc', 'Document'),
@@ -12,7 +28,13 @@ class WorkItem(models.Model):
     
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    type = models.CharField(max_length=20, choices=TYPES)
+    
+    # Keep the old type field for backward compatibility
+    type = models.CharField(max_length=20, choices=TYPES, null=True, blank=True)
+    
+    # Add new reference to WorkItemType
+    item_type = models.ForeignKey(WorkItemType, on_delete=models.SET_NULL, null=True, blank=True, related_name='work_items')
+    
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='work_item')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -23,6 +45,49 @@ class WorkItem(models.Model):
     
     class Meta:
         ordering = ['-updated_at']
+    
+    def get_type_display(self):
+        """Override to handle both old and new type fields"""
+        if self.item_type:
+            return self.item_type.name
+        elif self.type:
+            # Use Django's get_FOO_display method logic
+            for value, display in self.TYPES:
+                if value == self.type:
+                    return display
+        return "Unknown"
+    
+    def get_type_for_badge(self):
+        """Return the type name for display in badges"""
+        return self.get_type_display()
+    
+    def get_type_color(self):
+        """Return the color to use for this type in UI elements"""
+        if self.item_type and self.item_type.color:
+            return self.item_type.color
+        
+        # Default colors for legacy types
+        if self.type == 'task':
+            return 'info'
+        elif self.type == 'doc':
+            return 'purple'
+        elif self.type == 'project':
+            return 'warning'
+        return 'primary'
+    
+    def get_type_icon(self):
+        """Return the icon to use for this type in UI elements"""
+        if self.item_type and self.item_type.icon:
+            return self.item_type.icon
+        
+        # Default icons for legacy types
+        if self.type == 'task':
+            return 'fa-tasks'
+        elif self.type == 'doc':
+            return 'fa-file-alt'
+        elif self.type == 'project':
+            return 'fa-project-diagram'
+        return 'fa-clipboard'
 
 class Message(models.Model):
     work_item = models.ForeignKey(WorkItem, on_delete=models.CASCADE, related_name='messages')

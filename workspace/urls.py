@@ -9,6 +9,13 @@ urlpatterns = [
     path('work-item/<int:pk>/update/', views.update_work_item, name='update_work_item'),
     path('work-item/<int:pk>/delete/', views.delete_work_item, name='delete_work_item'),
     path('work-item/<int:pk>/upload-file/', views.upload_file, name='upload_file'),
+    path('work-item/<int:pk>/remove-collaborator/<int:user_id>/', views.remove_collaborator, name='remove_collaborator'),
+    
+    # Work Item Types management
+    path('work-item-types/', views.work_item_types_list, name='work_item_types_list'),
+    path('work-item-types/new/', views.create_work_item_type, name='create_work_item_type'),
+    path('work-item-types/<int:pk>/update/', views.update_work_item_type, name='update_work_item_type'),
+    path('work-item-types/<int:pk>/delete/', views.delete_work_item_type, name='delete_work_item_type'),
     
     # Thread management
     path('work-item/<int:work_item_pk>/thread/new/', views.create_thread, name='create_thread'),

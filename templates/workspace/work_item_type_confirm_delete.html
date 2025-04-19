@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Work Item Type | CollabHub{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Delete Work Item Type</h4>
+                    <a href="{% url 'work_item_types_list' %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Types
+                    </a>
+                </div>
+                <div class="card-body">
+                    <h5 class="mb-3">Are you sure you want to delete this work item type?</h5>
+                    
+                    <div class="mb-4 p-3 border rounded">
+                        <div class="d-flex align-items-center mb-3">
+                            <span class="badge bg-{{ work_item_type.color }} me-2" style="font-size: 1rem;">
+                                <i class="fas {{ work_item_type.icon }} me-1"></i>
+                                {{ work_item_type.name }}
+                            </span>
+                        </div>
+                        {% if work_item_type.description %}
+                            <p class="text-muted mb-0">{{ work_item_type.description }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    {% if work_items_using_type > 0 %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Warning:</strong> This type is currently being used by {{ work_items_using_type }} work item{{ work_items_using_type|pluralize }}.
+                            <p class="mt-2 mb-0">If you delete this type, these work items will be reassigned to a default type.</p>
+                        </div>
+                    {% endif %}
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if work_items_using_type > 0 %}
+                            <div class="form-check mb-3">
+                                <input type="checkbox" name="confirm_deletion" id="confirm_deletion" class="form-check-input" required>
+                                <label for="confirm_deletion" class="form-check-label">
+                                    I understand that {{ work_items_using_type }} work item{{ work_items_using_type|pluralize }} will be reassigned
+                                </label>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-end">
+                            <a href="{% url 'work_item_types_list' %}" class="btn btn-outline-secondary me-2">Cancel</a>
+                            <button type="submit" class="btn btn-danger">Delete</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

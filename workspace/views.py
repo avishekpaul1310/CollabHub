@@ -22,8 +22,8 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.csrf import csrf_exempt
-from .models import WorkItem, Message, Notification, NotificationPreference, ScheduledMessage, MessageReadReceipt
-from .forms import WorkItemForm, MessageForm, ThreadForm
+from .models import WorkItem, Message, Notification, NotificationPreference, ScheduledMessage, MessageReadReceipt, WorkItemType
+from .forms import WorkItemForm, MessageForm, ThreadForm, WorkItemTypeForm
 from django.db.models import Q
 from django.db import IntegrityError
 from .models import Thread, FileAttachment, SlowChannel, SlowChannelMessage
@@ -1602,3 +1602,122 @@ def manually_run_scheduled_messages(request):
         messages.error(request, f"Error sending scheduled messages: {str(e)}")
     
     return redirect('my_scheduled_messages')
+
+@login_required
+def remove_collaborator(request, pk, user_id):
+    """View to remove a collaborator from a work item"""
+    work_item = get_object_or_404(WorkItem, pk=pk)
+    
+    # Only the owner can remove collaborators
+    if work_item.owner != request.user:
+        messages.error(request, "Only the work item owner can remove collaborators.")
+        return redirect('work_item_detail', pk=work_item.pk)
+    
+    # Get the collaborator to remove
+    collaborator = get_object_or_404(User, pk=user_id)
+    
+    # Check if user is actually a collaborator
+    if collaborator in work_item.collaborators.all():
+        # Remove the collaborator
+        work_item.collaborators.remove(collaborator)
+        messages.success(request, f"{collaborator.username} has been removed as a collaborator.")
+    else:
+        messages.error(request, f"{collaborator.username} is not a collaborator on this work item.")
+    
+    return redirect('work_item_detail', pk=work_item.pk)
+
+@login_required
+def work_item_types_list(request):
+    """View to list and manage work item types"""
+    # Get all work item types created by this user
+    types = WorkItemType.objects.filter(created_by=request.user)
+    
+    context = {
+        'types': types,
+        'title': 'Manage Work Item Types'
+    }
+    return render(request, 'workspace/work_item_types_list.html', context)
+
+@login_required
+def create_work_item_type(request):
+    """View to create a new work item type"""
+    if request.method == 'POST':
+        form = WorkItemTypeForm(request.POST, user=request.user)
+        if form.is_valid():
+            work_item_type = form.save(commit=False)
+            work_item_type.created_by = request.user
+            work_item_type.save()
+            messages.success(request, f'Work item type "{work_item_type.name}" has been created!')
+            return redirect('work_item_types_list')
+    else:
+        form = WorkItemTypeForm(user=request.user)
+    
+    context = {
+        'form': form,
+        'title': 'Create Work Item Type'
+    }
+    return render(request, 'workspace/work_item_type_form.html', context)
+
+@login_required
+def update_work_item_type(request, pk):
+    """View to update an existing work item type"""
+    work_item_type = get_object_or_404(WorkItemType, pk=pk, created_by=request.user)
+    
+    if request.method == 'POST':
+        form = WorkItemTypeForm(request.POST, instance=work_item_type, user=request.user)
+        if form.is_valid():
+            work_item_type = form.save()
+            messages.success(request, f'Work item type "{work_item_type.name}" has been updated!')
+            return redirect('work_item_types_list')
+    else:
+        form = WorkItemTypeForm(instance=work_item_type, user=request.user)
+    
+    context = {
+        'form': form,
+        'work_item_type': work_item_type,
+        'title': 'Update Work Item Type'
+    }
+    return render(request, 'workspace/work_item_type_form.html', context)
+
+@login_required
+def delete_work_item_type(request, pk):
+    """View to delete a work item type"""
+    work_item_type = get_object_or_404(WorkItemType, pk=pk, created_by=request.user)
+    
+    # Check if this type is being used by any work items
+    work_items_using_type = work_item_type.work_items.count()
+    
+    if request.method == 'POST':
+        if work_items_using_type > 0 and not request.POST.get('confirm_deletion'):
+            messages.error(request, 
+                f'Cannot delete "{work_item_type.name}" because it is used by {work_items_using_type} work items. '
+                f'Please confirm deletion to reassign these work items to a default type.')
+            return redirect('delete_work_item_type', pk=work_item_type.pk)
+        
+        # If deletion is confirmed and work items are using this type, reassign them
+        if work_items_using_type > 0:
+            # Find or create a default type to reassign work items to
+            default_type, created = WorkItemType.objects.get_or_create(
+                name='Task',
+                created_by=request.user,
+                defaults={'color': 'info', 'icon': 'fa-tasks'}
+            )
+            
+            # Reassign work items to the default type
+            work_item_type.work_items.update(item_type=default_type)
+            
+            messages.info(request, 
+                f'Reassigned {work_items_using_type} work items from "{work_item_type.name}" to "{default_type.name}"')
+        
+        # Now delete the type
+        type_name = work_item_type.name
+        work_item_type.delete()
+        messages.success(request, f'Work item type "{type_name}" has been deleted!')
+        return redirect('work_item_types_list')
+    
+    context = {
+        'work_item_type': work_item_type,
+        'work_items_using_type': work_items_using_type,
+        'title': 'Delete Work Item Type'
+    }
+    return render(request, 'workspace/work_item_type_confirm_delete.html', context)

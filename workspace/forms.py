@@ -1,5 +1,5 @@
 from django import forms
-from .models import WorkItem, Message, FileAttachment, NotificationPreference, Thread, ScheduledMessage, SlowChannel, SlowChannelMessage
+from .models import WorkItem, WorkItemType, Message, FileAttachment, NotificationPreference, Thread, ScheduledMessage, SlowChannel, SlowChannelMessage
 from django.contrib.auth.models import User
 import datetime
 from django.utils import timezone
@@ -13,14 +13,16 @@ class WorkItemForm(forms.ModelForm):
     
     class Meta:
         model = WorkItem
-        fields = ['title', 'description', 'type', 'collaborators']
+        fields = ['title', 'description', 'item_type', 'collaborators']
+        widgets = {
+            'item_type': forms.Select(attrs={'class': 'form-select'}),
+        }
     
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super(WorkItemForm, self).__init__(*args, **kwargs)
         
         # Initialize the queryset for collaborators
-        
         if 'collaborators' in self.fields:
             # Get all users except the current user
             if self.user:
@@ -30,6 +32,50 @@ class WorkItemForm(forms.ModelForm):
         
         # Make collaborators field not required
         self.fields['collaborators'].required = False
+
+        # Handle work item types - use custom types and default types
+        if self.user:
+            # Get all available work item types for the current user
+            # This includes types created by the user and some system defaults
+            custom_types = WorkItemType.objects.filter(created_by=self.user)
+            
+            # If no custom types exist, create the default ones
+            if not custom_types.exists():
+                self._create_default_types()
+                custom_types = WorkItemType.objects.filter(created_by=self.user)
+            
+            # Set the queryset for the item_type field
+            self.fields['item_type'].queryset = custom_types
+            self.fields['item_type'].empty_label = None
+            self.fields['item_type'].label = "Type"
+            self.fields['item_type'].help_text = "Select a work item type or <a href='/work-item-types/'>manage your types</a>"
+    
+    def _create_default_types(self):
+        """Create default work item types for a new user"""
+        if not self.user:
+            return
+        
+        # Define default types with colors and icons
+        defaults = [
+            {'name': 'Task', 'color': 'info', 'icon': 'fa-tasks', 
+             'description': 'A single actionable item'},
+            {'name': 'Document', 'color': 'purple', 'icon': 'fa-file-alt',
+             'description': 'Documentation, notes, or written content'},
+            {'name': 'Project', 'color': 'warning', 'icon': 'fa-project-diagram',
+             'description': 'A collection of related tasks and resources'}
+        ]
+        
+        # Create each default type
+        for type_info in defaults:
+            WorkItemType.objects.get_or_create(
+                name=type_info['name'],
+                created_by=self.user,
+                defaults={
+                    'color': type_info['color'],
+                    'icon': type_info['icon'],
+                    'description': type_info['description']
+                }
+            )
     
     def save(self, commit=True):
         instance = super(WorkItemForm, self).save(commit=False)
@@ -42,6 +88,66 @@ class WorkItemForm(forms.ModelForm):
             instance.save()
             # Now it's safe to save many-to-many relationships
             self.save_m2m()
+            
+        return instance
+
+class WorkItemTypeForm(forms.ModelForm):
+    """Form for creating and editing work item types"""
+    COLOR_CHOICES = [
+        ('primary', 'Blue'),
+        ('secondary', 'Gray'),
+        ('success', 'Green'),
+        ('danger', 'Red'),
+        ('warning', 'Yellow'),
+        ('info', 'Light Blue'),
+        ('purple', 'Purple'),
+        ('pink', 'Pink'),
+        ('orange', 'Orange'),
+        ('teal', 'Teal'),
+    ]
+    
+    ICON_CHOICES = [
+        ('fa-tasks', 'Tasks'),
+        ('fa-file-alt', 'Document'),
+        ('fa-project-diagram', 'Project'),
+        ('fa-cog', 'Settings'),
+        ('fa-bug', 'Bug'),
+        ('fa-lightbulb', 'Idea'),
+        ('fa-question', 'Question'),
+        ('fa-check', 'Checkbox'),
+        ('fa-calendar', 'Calendar'),
+        ('fa-users', 'Team'),
+        ('fa-code', 'Code'),
+        ('fa-clipboard', 'Clipboard'),
+        ('fa-book', 'Book'),
+        ('fa-chart-bar', 'Chart'),
+    ]
+    
+    color = forms.ChoiceField(choices=COLOR_CHOICES, required=True, widget=forms.Select(attrs={'class': 'form-select'}))
+    icon = forms.ChoiceField(choices=ICON_CHOICES, required=True, widget=forms.Select(attrs={'class': 'form-select'}))
+    
+    class Meta:
+        model = WorkItemType
+        fields = ['name', 'description', 'color', 'icon']
+        
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super(WorkItemTypeForm, self).__init__(*args, **kwargs)
+        
+        # Set help texts
+        self.fields['name'].help_text = "A short, descriptive name for this type"
+        self.fields['description'].help_text = "Optional description of this type"
+        self.fields['color'].help_text = "Color used for badges and UI elements"
+        self.fields['icon'].help_text = "Icon displayed next to this type"
+        
+    def save(self, commit=True):
+        instance = super(WorkItemTypeForm, self).save(commit=False)
+        
+        if not instance.pk and self.user:
+            instance.created_by = self.user
+            
+        if commit:
+            instance.save()
             
         return instance
 

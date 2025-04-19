@@ -6,8 +6,11 @@
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h4 class="mb-0">{{ title }}</h4>
+                <a href="{% url 'work_item_types_list' %}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-tag"></i> Manage Types
+                </a>
             </div>
             <div class="card-body">
                 <form method="POST">
@@ -30,16 +33,19 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="{{ form.type.id_for_label }}" class="form-label">Type</label>
-                        {{ form.type.errors }}
-                        <select name="{{ form.type.name }}" id="{{ form.type.id_for_label }}"
-                               class="form-select {% if form.type.errors %}is-invalid{% endif %}">
-                            {% for value, text in form.type.field.choices %}
-                            <option value="{{ value }}" {% if form.type.value == value %}selected{% endif %}>
-                                {{ text }}
+                        <label for="{{ form.item_type.id_for_label }}" class="form-label">Type</label>
+                        {{ form.item_type.errors }}
+                        <select name="{{ form.item_type.name }}" id="{{ form.item_type.id_for_label }}"
+                               class="form-select {% if form.item_type.errors %}is-invalid{% endif %}">
+                            {% for type_obj in form.fields.item_type.queryset %}
+                            <option value="{{ type_obj.id }}" {% if form.item_type.value == type_obj.id %}selected{% endif %}>
+                                {{ type_obj.name }}
                             </option>
                             {% endfor %}
                         </select>
+                        <small class="form-text text-muted">
+                            <a href="{% url 'work_item_types_list' %}">Manage custom types</a>
+                        </small>
                     </div>
                     
                     {% if form.collaborators.field.queryset.exists %}
