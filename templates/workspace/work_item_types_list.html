@@ -44,10 +44,19 @@
                                     {% for type in types %}
                                         <tr>
                                             <td>
-                                                <span class="badge {% if 'text-' in type.color %}bg-{{ type.color|cut:'text-dark'|cut:'text-white'|trim }}{% else %}bg-{{ type.color }}{% endif %} {% if 'text-' in type.color %}{{ type.color|cut:'primary '|cut:'secondary '|cut:'success '|cut:'danger '|cut:'warning '|cut:'info '|cut:'purple '|cut:'pink '|cut:'orange '|cut:'teal '|trim }}{% endif %}">
-                                                    <i class="fas {{ type.icon }} me-1"></i>
-                                                    {{ type.name }}
-                                                </span>
+                                                {% if 'text-' in type.color %}
+                                                    {% with bg_color=type.color|cut:'text-dark'|cut:'text-white' %}
+                                                    <span class="badge bg-{{ bg_color }} {% if 'text-dark' in type.color %}text-dark{% elif 'text-white' in type.color %}text-white{% endif %}">
+                                                        <i class="fas {{ type.icon }} me-1"></i>
+                                                        {{ type.name }}
+                                                    </span>
+                                                    {% endwith %}
+                                                {% else %}
+                                                    <span class="badge bg-{{ type.color }}">
+                                                        <i class="fas {{ type.icon }} me-1"></i>
+                                                        {{ type.name }}
+                                                    </span>
+                                                {% endif %}
                                             </td>
                                             <td>{{ type.name }}</td>
                                             <td>{{ type.description|truncatechars:50 }}</td>
