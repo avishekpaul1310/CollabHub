@@ -172,7 +172,7 @@
                 action="{% url 'upload_file' work_item.pk %}">
                 {% csrf_token %}
                 <div class="input-group">
-                    <input type="file" name="file" class="form-control" id="file-input">
+                    <input type="file" name="file" class="form-control" id="file-sharing-input">
                     <button type="submit" class="btn btn-success">
                         <i class="fas fa-upload"></i> Upload
                     </button>
@@ -219,12 +219,12 @@
             <form id="file-upload-form" action="{% url 'upload_file' work_item.pk %}" method="post" enctype="multipart/form-data" class="mt-3">
                 {% csrf_token %}
                 <div class="input-group">
-                    <input type="file" name="file" class="form-control" id="file-input" required>
+                    <input type="file" name="file" class="form-control" id="chat-file-input" required>
                     <button type="submit" class="btn btn-success">
                         <i class="fas fa-upload"></i> Upload
                     </button>
                 </div>
-                <small id="file-name" class="text-muted"></small>
+                <small id="chat-file-name" class="text-muted"></small>
             </form>
         </div>
     </div>
@@ -270,12 +270,57 @@
 <script>
     // File upload preview
     document.addEventListener('DOMContentLoaded', function() {
-        const fileInput = document.getElementById('file-input');
-        if (fileInput) {
-            fileInput.addEventListener('change', function() {
-                // Display file name for selected file
+        // Handle file inputs in both locations
+        const fileSharingInput = document.getElementById('file-sharing-input');
+        const chatFileInput = document.getElementById('chat-file-input');
+        
+        // Handle file selection for file sharing section
+        if (fileSharingInput) {
+            fileSharingInput.addEventListener('change', function() {
                 const fileName = this.files.length > 0 ? this.files[0].name : '';
-                document.getElementById('file-name').textContent = fileName;
+                console.log('File selected in file sharing section:', fileName);
+            });
+        }
+        
+        // Handle file selection for chat section
+        if (chatFileInput) {
+            chatFileInput.addEventListener('change', function() {
+                const fileName = this.files.length > 0 ? this.files[0].name : '';
+                const fileNameElement = document.getElementById('chat-file-name');
+                if (fileNameElement) {
+                    fileNameElement.textContent = fileName;
+                }
+                console.log('File selected in chat section:', fileName);
+            });
+        }
+        
+        // Handle file upload form submissions
+        const fileUploadForm = document.getElementById('file-upload-form');
+        if (fileUploadForm) {
+            fileUploadForm.addEventListener('submit', function(e) {
+                const fileInput = document.getElementById('chat-file-input');
+                if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                    e.preventDefault();
+                    console.error('No file selected for upload');
+                    alert('Please select a file to upload');
+                } else {
+                    console.log(`Uploading file: ${fileInput.files[0].name}`);
+                }
+            });
+        }
+        
+        // Handle file sharing form submissions
+        const fileForm = document.getElementById('file-form');
+        if (fileForm) {
+            fileForm.addEventListener('submit', function(e) {
+                const fileInput = document.getElementById('file-sharing-input');
+                if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                    e.preventDefault();
+                    console.error('No file selected for upload');
+                    alert('Please select a file to upload');
+                } else {
+                    console.log(`Uploading file: ${fileInput.files[0].name}`);
+                }
             });
         }
     });
