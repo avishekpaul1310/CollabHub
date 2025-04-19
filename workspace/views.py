@@ -1721,3 +1721,38 @@ def delete_work_item_type(request, pk):
         'title': 'Delete Work Item Type'
     }
     return render(request, 'workspace/work_item_type_confirm_delete.html', context)
+
+@require_GET
+@login_required
+def get_notifications_ajax(request):
+    """API endpoint to get the latest notifications for the current user via AJAX"""
+    try:
+        # Get the 5 most recent notifications
+        recent_notifications = request.user.notifications.all()[:5]
+        
+        # Format the notifications for JSON response
+        notifications_data = []
+        for notification in recent_notifications:
+            notifications_data.append({
+                'id': notification.id,
+                'message': notification.message,
+                'is_read': notification.is_read,
+                'work_item_id': notification.work_item.pk if notification.work_item else None,
+                'thread_id': notification.thread.pk if notification.thread else None,
+                'notification_type': notification.notification_type,
+                'time_since': timesince(notification.created_at)
+            })
+        
+        # Mark these notifications as read
+        recent_notifications.filter(is_read=False).update(is_read=True)
+        
+        # Count remaining unread notifications
+        unread_count = request.user.notifications.filter(is_read=False).count()
+        
+        return JsonResponse({
+            'success': True,
+            'notifications': notifications_data,
+            'unread_count': unread_count
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

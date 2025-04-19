@@ -646,8 +646,62 @@
             
             // Function to refresh notification dropdown content
             function refreshNotificationDropdown() {
-                // This could be implemented with an AJAX call to get updated notifications
-                // For now, we're just relying on page refresh
+                // Fetch the latest notifications via AJAX
+                fetch('/workspace/notifications/ajax/', {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update the dropdown content
+                        const dropdown = document.querySelector('#notificationDropdown + ul.dropdown-menu');
+                        if (dropdown) {
+                            // Create new dropdown content
+                            let newContent = '';
+                            
+                            if (data.notifications && data.notifications.length > 0) {
+                                // Build notification items
+                                data.notifications.forEach(notif => {
+                                    const boldClass = notif.is_read ? '' : 'fw-bold';
+                                    newContent += `
+                                    <li>
+                                        <a class="dropdown-item ${boldClass}" href="/workspace/work-item/${notif.work_item_id}/">
+                                            ${notif.message}
+                                            <small class="text-muted d-block">${notif.time_since} ago</small>
+                                        </a>
+                                    </li>`;
+                                });
+                                
+                                // Add divider and links
+                                newContent += `
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item" href="/workspace/notification-preferences/">
+                                        <i class="fas fa-cog"></i> Notification Settings
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item text-center" href="/workspace/notifications/">
+                                        View all notifications
+                                    </a>
+                                </li>`;
+                            } else {
+                                newContent = '<li><a class="dropdown-item" href="#">No notifications</a></li>';
+                            }
+                            
+                            // Update the dropdown
+                            dropdown.innerHTML = newContent;
+                            console.log('Notification dropdown updated');
+                        }
+                    } else {
+                        console.error('Failed to fetch notifications:', data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching notifications:', error);
+                });
             }
 
             // Initialize the notification system

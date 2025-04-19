@@ -26,8 +26,7 @@ urlpatterns = [
     path('notifications/', views.notifications_list, name='notifications_list'),
     path('notifications/<int:pk>/read/', views.mark_notification_read, name='mark_notification_read'),
     path('notifications/mark-all-read/', views.mark_all_read, name='mark_all_read'),
-    
-    # Add the missing notification_preferences URL
+    path('notifications/ajax/', views.get_notifications_ajax, name='get_notifications_ajax'),  # New URL for Ajax notifications
     path('notifications/preferences/', views.notification_preferences, name='notification_preferences'),
     path('notifications/toggle-mute/<int:pk>/', views.toggle_mute_work_item, name='toggle_mute_work_item'),
     path('notifications/toggle-mute-thread/<int:pk>/', views.toggle_mute_thread, name='toggle_mute_thread'),
@@ -55,7 +54,7 @@ urlpatterns = [
     path('slow-channel/<int:channel_pk>/leave/', views.leave_slow_channel, name='leave_slow_channel'),
     path('my-slow-channels/', views.my_slow_channels, name='my_slow_channels'),
 
-# Online Status URLs
+    # Online Status URLs
     path('api/user/preferences/online-status/', views.get_online_status_preference, name='get_online_status_preference'),
     path('api/user/online-status/', views.update_online_status, name='update_online_status'),
     path('api/user/<int:user_id>/online-status/', views.get_user_online_status, name='get_user_online_status'),

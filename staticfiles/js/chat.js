@@ -101,10 +101,10 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('Chat form not found');
     }
     
-    // Display selected file name
-    const fileInput = document.getElementById('file-input');
-    if (fileInput) {
-        fileInput.addEventListener('change', handleFileSelection);
+    // Display selected file name - updated to use chat-file-input
+    const chatFileInput = document.getElementById('chat-file-input');
+    if (chatFileInput) {
+        chatFileInput.addEventListener('change', handleFileSelection);
     }
     
     // Handle file upload form
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // No need to use WebSocket for file uploads
             
             // Optional: Show upload status
-            const fileInput = document.getElementById('file-input');
+            const fileInput = document.getElementById('chat-file-input');
             if (fileInput && fileInput.files.length > 0) {
                 console.log(`Uploading file: ${fileInput.files[0].name}`);
             } else {
@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     function handleFileSelection(e) {
         const fileName = this.files.length > 0 ? this.files[0].name : '';
-        const fileNameElement = document.getElementById('file-name');
+        const fileNameElement = document.getElementById('chat-file-name');
         if (fileNameElement) {
             fileNameElement.textContent = fileName;
         }
